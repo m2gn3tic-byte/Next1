@@ -25,14 +25,24 @@ kui missioon veel jätkub.
 TULISTAMINE JA POOD
 Väike asteroid: 1 tabamus ja 0 münti.
 Keskmine asteroid: 3 tabamust ja juhuslikult 1–3 münti.
-Suur asteroid: 6 tabamust ja juhuslikult 4–7 münti.
+Suur asteroid: 6 tabamust ja juhuslikult 3–5 münti.
+Üks asteroid annab kõige rohkem 5 münti. Purunemiskillud on ainult efekt.
 Lennuraja münt annab 1 mündi ja 20 punkti; pakk annab 2 münti ja 150 punkti.
 Teenitud mündid jäävad alles ka kaotusel või menüüsse naastes.
 Poes saab müntidega laevavälimusi ja lennujälgi. Kõigil laevadel on samad võimed.
 Kõrvitsakuller on tasuta Halloweeni kingitus 15.10.–07.11.2026, mida saad pärast
 hooaega edasi kasutada. Tasulise Öötiiva eelvaade ei paku veel pärisoste.
 
-Edenemine, rahakott, omatud esemed ja sätted salvestatakse samasse brauserisse.
+KEELED JA HOOAJARADA
+Peamenüü 文A-nupust saab valida 24 keele seast. Uus mäng valib toetatud
+seadmekeele; muul juhul inglise keele. Varasemad eesti salvestused säilivad.
+Halloweeni battle passis on kümme tasuta astet, igaüks 200 XP. Asteroid annab
+5 XP, korjatud münt 2 XP, tarne 25 XP ja võit 50 XP. Esimesed üheksa auhinda
+annavad münte; kümnes annab Kuukiire lennujälje. Iga auhind on ühekordne.
+XP-d teenib 15.10.–07.11.2026; teenitud auhindu saab võtta ka hiljem.
+Premium-osa ei paku veel pärisoste. Hooaja aeg tuleb seadme UTC kellast.
+
+Edenemine, rahakott, omatud esemed, keel ja hooajarada salvestatakse samasse brauserisse.
 Brauseri andmete kustutamine eemaldab ka mängusalvestuse. Pilvesünkroonimist pole.
 See on brauseris ja Godotis mängitav prototüüp. Androidi APK/AAB, päristelefonil
 testimine, reklaamid ja pärisostud lisanduvad järgmistes etappides.

@@ -1,0 +1,34 @@
+{
+  "NotoCJK.otf": {
+    "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
+    "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+    "bytes": 16437364
+  },
+  "OFL-CJK.txt": {
+    "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/LICENSE",
+    "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+    "bytes": 4301
+  },
+  "NotoDevanagari.ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/58466038e19d5a14053e0c9f863715e74af0fe0e/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth,wght%5D.ttf",
+    "sha256": "14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e",
+    "bytes": 641944
+  },
+  "OFL-Devanagari.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/58466038e19d5a14053e0c9f863715e74af0fe0e/ofl/notosansdevanagari/OFL.txt",
+    "sha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
+    "bytes": 4386,
+    "bundled_normalization": "Trailing whitespace removed; SHA256 above identifies the unchanged upstream download."
+  },
+  "NotoThai.ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/58466038e19d5a14053e0c9f863715e74af0fe0e/ofl/notosansthai/NotoSansThai%5Bwdth,wght%5D.ttf",
+    "sha256": "5a1c559bb539583c8a1fd99d1c5b9491e5e14478c9cd2bd0970d5c3096cc9ef8",
+    "bytes": 218652
+  },
+  "OFL-Thai.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/58466038e19d5a14053e0c9f863715e74af0fe0e/ofl/notosansthai/OFL.txt",
+    "sha256": "2e98fd23a52d253db8612cd5942c8f2ff4111b21d2367050fdca91d8ccc374a0",
+    "bytes": 4380,
+    "bundled_normalization": "Trailing whitespace removed; SHA256 above identifies the unchanged upstream download."
+  }
+}

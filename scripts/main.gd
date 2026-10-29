@@ -7,6 +7,9 @@ const PLANET := preload("res://assets/planet.svg")
 const ASTEROID := preload("res://assets/asteroid.svg")
 const FONT := preload("res://assets/fonts/DejaVuSans.ttf")
 const BOLD := preload("res://assets/fonts/DejaVuSans-Bold.ttf")
+const CJK_FONT := preload("res://assets/fonts/CourierCJKUI.otf")
+const DEVANAGARI_FONT := preload("res://assets/fonts/NotoDevanagari.ttf")
+const THAI_FONT := preload("res://assets/fonts/NotoThai.ttf")
 const MINT := Color("9af5d3")
 const CREAM := Color("fff4d9")
 const MUTED := Color("97aac6")
@@ -21,6 +24,8 @@ const SHIPS := {
 
 var run := CourierRun.new()
 var profile: CourierProfile
+var debris := CourierDebris.new()
+var localized_nodes: Array[Control] = []
 var stars: Array[Dictionary] = []
 var particles: Array[Dictionary] = []
 var rings: Array[Dictionary] = []
@@ -76,20 +81,38 @@ var fire_button: Button
 var preview_id := "nightwing"
 var home_progress: Label
 var halloween_label: Button
+var language_menu: Control
+var language_buttons: Dictionary = {}
+var season_pass: Control
+var pass_page := 0
+var pass_progress_label: Label
+var pass_rows: Array[Label] = []
+var pass_requirements: Array[Label] = []
+var pass_buttons: Array[Button] = []
+var pass_previous: Button
+var pass_next: Button
 
 
 func _ready() -> void:
 	profile = CourierProfile.new()
+	if not FileAccess.file_exists(profile.storage_path):
+		profile.language = CourierText.device_language(OS.get_locale())
+	for font: Font in [FONT, BOLD]:
+		font.fallbacks = [CJK_FONT, DEVANAGARI_FONT, THAI_FONT]
+	CourierText.set_language(profile.language)
 	visual_rng.seed = 774
 	for i in range(145):
 		stars.append({"position": Vector2(visual_rng.randf_range(20.0, 1060.0), visual_rng.randf_range(0.0, 1920.0)),
 			"depth": visual_rng.randf_range(0.2, 1.0), "phase": visual_rng.randf_range(0.0, TAU)})
 	run.event.connect(_on_run_event)
+	run.asteroid_shattered.connect(_on_asteroid_shattered)
 	sound_player = AudioStreamPlayer.new()
 	sound_player.volume_db = -13.0
 	add_child(sound_player)
 	_make_sounds()
 	_build_interface()
+	for node in localized_nodes:
+		_text(node, _t(node.get_meta("loc_key")), true)
 	_sync_interface()
 	get_window().focus_exited.connect(_pause_for_background)
 
@@ -119,6 +142,7 @@ func _process(delta: float) -> void:
 		for star in stars:
 			star.position.y = fposmod(star.position.y + dt * 72.0 * star.depth, 1920.0)
 	if run.mode != CourierRun.Mode.PAUSED:
+		debris.step(dt)
 		hit_flash = maxf(0.0, hit_flash - dt * 2.0)
 		toast_remaining = maxf(0.0, toast_remaining - dt)
 		intro_remaining = maxf(0.0, intro_remaining - dt)
@@ -200,6 +224,7 @@ func _start_run() -> void:
 	run.auto_fire = profile.auto_fire
 	last_mode = run.mode
 	drag_id = -1
+	debris.clear()
 	particles.clear()
 	rings.clear()
 	floaters.clear()
@@ -217,6 +242,7 @@ func _go_home() -> void:
 	run.mode = CourierRun.Mode.READY
 	last_mode = run.mode
 	drag_id = -1
+	debris.clear()
 	particles.clear()
 	rings.clear()
 	floaters.clear()
@@ -236,46 +262,50 @@ func _toggle_pause() -> void:
 func _on_run_event(kind: String, at: Vector2, amount: int) -> void:
 	match kind:
 		"coin":
-			_credit_coins(amount)
+			_reward_flight(amount, 2)
 			_burst(at, GOLD, 10)
-			floaters.append({"position": at, "text": "+1 MÜNT", "color": GOLD, "life": 0.8})
+			floaters.append({"position": at, "text": _t("coin_popup"), "color": GOLD, "life": 0.8})
 			_play_sound("coin")
 		"delivery":
-			_credit_coins(2)
 			var accent: Color = _level_data().accent
 			_burst(at, accent, 58)
 			rings.append({"position": at, "color": accent, "life": 1.0})
-			floaters.append({"position": at - Vector2(0, 130), "text": "+150 P  ·  +2 MÜNTI", "color": GOLD, "life": 1.3})
-			notification_text = "Pakk kohal!  +150 P · +2 münti"
+			floaters.append({"position": at - Vector2(0, 130), "text": _t("delivery_popup"), "color": GOLD, "life": 1.3})
+			notification_text = _t("delivery_toast")
 			toast_remaining = 2.3
+			_reward_flight(2, 25)
 			_play_sound("delivery")
 		"destination":
-			notification_text = "Järgmine peatus läheneb"
+			notification_text = _t("destination_toast")
 			toast_remaining = 2.4
 		"hit":
 			_burst(at, Color("ffa78e"), 24)
 			hit_flash = 0.5
-			notification_text = "Kilp kaitses sind!"
+			notification_text = _t("hit_toast")
 			toast_remaining = 1.5
 			_play_sound("hit")
 		"repair":
 			rings.append({"position": at, "color": MINT, "life": 0.8})
 			_burst(at, MINT, 20)
-			floaters.append({"position": at - Vector2(0, 75), "text": "+1 KILP", "color": MINT, "life": 1.6})
+			floaters.append({"position": at - Vector2(0, 75), "text": _t("shield_popup"), "color": MINT, "life": 1.6})
 		"asteroid_hit":
 			_burst(at, Color("b5d8ef"), 5)
 		"asteroid_destroyed":
-			_burst(at, GOLD if amount > 0 else MUTED, 28)
+			_burst(at, GOLD if amount > 0 else MUTED, 12)
 			rings.append({"position": at, "color": GOLD if amount > 0 else MINT, "life": 0.5})
-			floaters.append({"position": at, "text": "+%s MÜNTI" % amount if amount > 0 else "+10 P", "color": GOLD, "life": 1.0})
-			if amount > 0:
-				_credit_coins(amount)
+			floaters.append({"position": at, "text": _t("rock_popup", [amount]) if amount > 0 else "+10 P", "color": GOLD, "life": 1.0})
+			_reward_flight(amount, 5)
 			_play_sound("rock")
 		"won":
+			_reward_flight(0, 50)
 			_burst(Vector2(540.0, 485.0), GOLD, 90)
 			_play_sound("delivery")
 		"lost":
 			_play_sound("hit")
+
+
+func _on_asteroid_shattered(at: Vector2, radius: float, variant: int) -> void:
+	debris.burst(at, radius, variant)
 
 
 func _burst(at: Vector2, color: Color, count: int) -> void:
@@ -286,88 +316,125 @@ func _burst(at: Vector2, color: Color, count: int) -> void:
 
 func _build_interface() -> void:
 	var header := _layer("Header")
-	_label(header, "KOSMOSEKULLER", Rect2(64, 72, 780, 80), 59, CREAM, true)
-	region_label = _label(header, "VÄIKE LAEV. SUUR GALAKTIKA.", Rect2(68, 152, 760, 40), 23, MUTED)
+	_label(header, "game_title", Rect2(64, 72, 630, 80), 59, CREAM, true)
+	region_label = _label(header, "subtitle", Rect2(68, 152, 760, 40), 23, MUTED)
 	sound_button = _button(header, "♪", Rect2(824, 76, 78, 78), _toggle_sound, false)
-	sound_button.tooltip_text = "Heli sisse / välja"
-	sound_button.accessibility_name = "Heli sisse või välja"
+	var language_button := _button(header, "文A", Rect2(716, 76, 88, 78), _show_menu.bind("languages"), false)
+	language_button.name = "LanguageButton"
+	_font_size(language_button, 26)
+	sound_button.tooltip_text = _t("sound_tip")
+	sound_button.accessibility_name = _t("sound_tip")
 	var pause_button := _button(header, "Ⅱ", Rect2(922, 76, 90, 78), _toggle_pause, false)
 	pause_button.name = "PauseButton"
-	pause_button.tooltip_text = "Paus (P / Esc)"
-	pause_button.accessibility_name = "Peata lend"
+	pause_button.tooltip_text = _t("pause_tip")
+	pause_button.accessibility_name = _t("pause_tip")
 
 	home = _layer("Home")
-	_label(home, "KOSMOSEPOST // 100 SIHTKOHTA", Rect2(130, 496, 820, 48), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(home, "Galaktika ootab.", Rect2(120, 568, 840, 104), 68, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(home, "home_tag", Rect2(130, 496, 820, 48), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(home, "home_title", Rect2(120, 568, 840, 104), 68, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
 	home_progress = _label(home, "", Rect2(150, 702, 780, 100), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
 	home_region_label = _label(home, "", Rect2(180, 844, 720, 48), 27, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
 	home_description = _label(home, "", Rect2(140, 1132, 800, 45), 26, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	var map_button := _button(home, "TASEMED  →", Rect2(150, 1190, 376, 110), _show_menu.bind("map"), false)
+	var map_button := _button(home, "levels", Rect2(150, 1190, 376, 110), _show_menu.bind("map"), false)
 	map_button.name = "MapButton"
-	var shop_button := _button(home, "POOD  →", Rect2(554, 1190, 376, 110), _show_menu.bind("shop"), false)
+	var shop_button := _button(home, "shop", Rect2(554, 1190, 376, 110), _show_menu.bind("shop"), false)
 	shop_button.name = "ShopButton"
-	var start := _button(home, "ALUSTA LENDU  →", Rect2(150, 1364, 780, 116), _start_run, true)
+	var start := _button(home, "start", Rect2(150, 1364, 780, 116), _start_run, true)
 	start.name = "StartButton"
-	halloween_label = _button(home, "", Rect2(120, 1580, 840, 130), _show_menu.bind("shop"), false)
+	halloween_label = _button(home, "", Rect2(120, 1580, 840, 130), _show_menu.bind("pass"), false)
 	halloween_label.name = "SeasonButton"
-	halloween_label.add_theme_font_size_override("font_size", 27)
+	_font_size(halloween_label, 27)
 	halloween_label.add_theme_color_override("font_color", GOLD)
 	record_label = _label(home, "", Rect2(150, 1770, 780, 48), 24, GOLD, false, HORIZONTAL_ALIGNMENT_CENTER)
 
 	level_map = _layer("LevelMap")
-	_button(level_map, "← MENÜÜ", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
+	_button(level_map, "back_menu", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
 	map_title = _label(level_map, "", Rect2(100, 360, 880, 70), 37, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
 	for i in range(10):
 		var button := _button(level_map, "", Rect2(100 + (i % 2) * 460, 470 + int(i / 2) * 155, 420, 132), _choose_map_slot.bind(i), false)
 		button.name = "Level%sButton" % (i + 1)
 		button.toggle_mode = true
-		button.add_theme_font_size_override("font_size", 28)
+		_font_size(button, 28)
 		button.add_theme_stylebox_override("disabled", _style(Color("101c32"), Color("26374e"), 26))
 		button.add_theme_color_override("font_disabled_color", Color("60718b"))
 		level_buttons.append(button)
 	map_summary = _label(level_map, "", Rect2(100, 1320, 880, 110), 29, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
-	var map_start := _button(level_map, "LENDA VALITUD TASEMELE  →", Rect2(100, 1490, 880, 110), _start_run, true)
+	var map_start := _button(level_map, "map_start", Rect2(100, 1490, 880, 110), _start_run, true)
 	map_start.name = "StartButton"
-	map_previous = _button(level_map, "← EELMISED", Rect2(100, 1690, 420, 90), _change_map_page.bind(-1), false)
+	map_previous = _button(level_map, "previous", Rect2(100, 1690, 420, 90), _change_map_page.bind(-1), false)
 	map_previous.name = "PreviousButton"
-	map_next = _button(level_map, "JÄRGMISED →", Rect2(560, 1690, 420, 90), _change_map_page.bind(1), false)
+	map_next = _button(level_map, "next", Rect2(560, 1690, 420, 90), _change_map_page.bind(1), false)
 	map_next.name = "NextButton"
 
 	shop = _layer("Shop")
-	_button(shop, "← MENÜÜ", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
-	_label(shop, "VÄIKE LAEV. SINU STIIL.", Rect2(80, 360, 920, 70), 39, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(shop, "Välimused ja lennujäljed · kõigil sama lennuvõime", Rect2(80, 432, 920, 42), 23, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	_button(shop, "back_menu", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
+	_label(shop, "shop_title", Rect2(80, 360, 920, 70), 39, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(shop, "shop_subtitle", Rect2(80, 432, 920, 42), 23, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
 	for index in range(CourierCatalogue.SHOP_IDS.size()):
 		var id: String = CourierCatalogue.SHOP_IDS[index]
 		var data := CourierCatalogue.item(id)
 		var at := Vector2(100 + (index % 2) * 460, 510 + int(index / 2) * 395)
-		_label(shop, data.name, Rect2(at.x + 12, at.y + 167, 396, 42), 29, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
-		var detail := "LAEVAVÄLIMUS" if data.kind == "ship" else "LENNUJÄLG"
+		_label(shop, "item_" + id, Rect2(at.x + 12, at.y + 167, 396, 42), 29, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+		var detail := "ship_skin" if data.kind == "ship" else "trail"
 		if data.access == "season_gift":
-			detail = "HALLOWEEN · TASUTA KINGITUS"
+			detail = "gift_detail"
 		elif data.access == "premium":
-			detail = "HALLOWEEN · TASULINE"
+			detail = "paid_detail"
 		_label(shop, detail, Rect2(at.x + 10, at.y + 215, 400, 40), 18, data.color, true, HORIZONTAL_ALIGNMENT_CENTER)
 		var button := _button(shop, "", Rect2(at.x + 25, at.y + 277, 370, 72), _shop_action.bind(id), false)
 		button.name = "Item_" + id
-		button.add_theme_font_size_override("font_size", 25)
+		_font_size(button, 25)
 		shop_buttons[id] = button
-	_label(shop, "Halloween 15.10.–07.11.2026 · Saadud esemed jäävad alles.", Rect2(80, 1705, 920, 42), 21, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	var original_ship := _button(shop, "ALGNE LAEV", Rect2(100, 1765, 420, 64), _shop_action.bind("courier"), false)
+	_label(shop, "season_dates", Rect2(80, 1705, 920, 42), 21, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	var original_ship := _button(shop, "original_ship", Rect2(100, 1765, 420, 64), _shop_action.bind("courier"), false)
 	original_ship.name = "OriginalShipButton"
-	original_ship.add_theme_font_size_override("font_size", 23)
-	var original_trail := _button(shop, "ALGNE JÄLG", Rect2(560, 1765, 420, 64), _shop_action.bind("mint_trail"), false)
+	_font_size(original_ship, 23)
+	var original_trail := _button(shop, "original_trail", Rect2(560, 1765, 420, 64), _shop_action.bind("mint_trail"), false)
 	original_trail.name = "OriginalTrailButton"
-	original_trail.add_theme_font_size_override("font_size", 23)
+	_font_size(original_trail, 23)
 
 	preview = _layer("Preview")
-	_button(preview, "← POOD", Rect2(80, 260, 260, 84), _show_menu.bind("shop"), false)
-	_label(preview, "HALLOWEEN // ERIVÄLIMUS", Rect2(100, 470, 880, 50), 25, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(preview, "Öötiib", Rect2(100, 550, 880, 110), 70, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(preview, "Vaikne vari. Hele tähejälg.", Rect2(100, 686, 880, 60), 29, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(preview, "TASULINE HOOAJALAEV · EELVAADE", Rect2(100, 1200, 880, 70), 29, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(preview, "Tasulised ostud pole veel saadaval.\nLaeval on sama relv, kiirus ja kilbid.", Rect2(100, 1290, 880, 120), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	_button(preview, "TAGASI POODI", Rect2(150, 1500, 780, 110), _show_menu.bind("shop"), true)
+	_button(preview, "back_shop", Rect2(80, 260, 260, 84), _show_menu.bind("shop"), false)
+	_label(preview, "preview_tag", Rect2(100, 470, 880, 50), 25, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "item_nightwing", Rect2(100, 550, 880, 110), 70, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "preview_desc", Rect2(100, 686, 880, 60), 29, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "preview_title", Rect2(100, 1200, 880, 70), 29, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "preview_note", Rect2(100, 1290, 880, 120), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	_button(preview, "return_shop", Rect2(150, 1500, 780, 110), _show_menu.bind("shop"), true)
+
+	language_menu = _layer("Languages")
+	_button(language_menu, "back_menu", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
+	_label(language_menu, "language_title", Rect2(80, 360, 920, 70), 39, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(language_menu, "language_note", Rect2(80, 442, 920, 58), 25, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	var language_index := 0
+	for code in CourierText.LANGUAGES:
+		var button := _button(language_menu, CourierText.LANGUAGES[code], Rect2(80 + (language_index % 3) * 312, 560 + int(language_index / 3) * 146, 296, 116), _choose_language.bind(code), false)
+		button.name = "Language_" + code
+		button.toggle_mode = true
+		_font_size(button, 27)
+		language_buttons[code] = button
+		language_index += 1
+
+	season_pass = _layer("BattlePass")
+	_button(season_pass, "back_menu", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
+	_label(season_pass, "pass_title", Rect2(80, 360, 920, 70), 42, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(season_pass, "pass_guide", Rect2(80, 444, 920, 50), 26, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	pass_progress_label = _label(season_pass, "", Rect2(80, 515, 920, 55), 29, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(season_pass, "season_dates", Rect2(100, 601, 880, 34), 18, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	for slot in range(5):
+		var y := 640 + slot * 174
+		pass_rows.append(_label(season_pass, "", Rect2(190, y + 18, 520, 58), 32, CREAM, true))
+		pass_requirements.append(_label(season_pass, "", Rect2(190, y + 82, 510, 40), 23, MUTED))
+		var button := _button(season_pass, "", Rect2(735, y + 42, 230, 76), _claim_pass_slot.bind(slot), false)
+		button.name = "Tier%sButton" % (slot + 1)
+		_font_size(button, 23)
+		pass_buttons.append(button)
+	pass_previous = _button(season_pass, "previous", Rect2(100, 1530, 420, 86), _change_pass_page.bind(-1), false)
+	pass_previous.name = "PreviousButton"
+	pass_next = _button(season_pass, "next", Rect2(560, 1530, 420, 86), _change_pass_page.bind(1), false)
+	pass_next.name = "NextButton"
+	_label(season_pass, "pass_premium", Rect2(100, 1655, 880, 60), 31, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(season_pass, "pass_premium_note", Rect2(100, 1725, 880, 90), 24, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
 
 	var menu_chrome := _layer("MenuChrome")
 	wallet_label = _label(menu_chrome, "", Rect2(380, 260, 610, 84), 31, GOLD, true, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -377,21 +444,21 @@ func _build_interface() -> void:
 	coin_label = _label(hud, "0", Rect2(134, 238, 170, 60), 36, GOLD, true)
 	package_label = _label(hud, "PAKID 0/5", Rect2(360, 223, 360, 48), 27, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
 	score_label = _label(hud, "0 P", Rect2(797, 238, 200, 50), 28, MUTED, true, HORIZONTAL_ALIGNMENT_RIGHT)
-	hint_label = _label(hud, "LIBISTA JA JUHI", Rect2(70, 1660, 675, 64), 27, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	hint_label = _label(hud, "steer", Rect2(70, 1660, 675, 64), 27, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
 	subhint_label = _label(hud, "Hiir või nooleklahvid töötavad ka", Rect2(65, 1727, 680, 58), 21, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
 	fire_button = _button(hud, "", Rect2(770, 1663, 240, 122), _toggle_fire, false)
 	fire_button.name = "FireButton"
-	fire_button.add_theme_font_size_override("font_size", 24)
+	_font_size(fire_button, 24)
 	toast_label = _label(hud, "", Rect2(100, 1550, 880, 60), 30, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
 
 	overlay = _layer("Overlay")
-	_label(overlay, "KOSMOSEPOST // LENNUPÄEVIK", Rect2(150, 621, 780, 46), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(overlay, "log_tag", Rect2(150, 621, 780, 46), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
 	overlay_title = _label(overlay, "", Rect2(130, 726, 820, 100), 64, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
 	overlay_subtitle = _label(overlay, "", Rect2(180, 864, 720, 130), 30, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
 	overlay_stats = _label(overlay, "", Rect2(150, 1035, 780, 160), 39, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
 	primary_button = _button(overlay, "", Rect2(150, 1260, 780, 110), _primary_action, true)
 	primary_button.name = "PrimaryButton"
-	secondary_button = _button(overlay, "AVALEHELE", Rect2(150, 1400, 780, 100), _go_home, false)
+	secondary_button = _button(overlay, "home", Rect2(150, 1400, 780, 100), _go_home, false)
 	secondary_button.name = "HomeButton"
 
 
@@ -444,14 +511,14 @@ func _shop_action(id: String) -> void:
 	var already_owned := profile.owned_items.has(id)
 	var result := profile.equip_item(id) if already_owned else profile.acquire_item(id)
 	if result == OK:
-		menu_feedback.text = "%s on nüüd kasutusel!" % data.name
+		_text(menu_feedback, _t("using_item", [data.name]))
 		_play_sound("coin")
 	elif result == ERR_UNAUTHORIZED:
-		menu_feedback.text = "Vaja veel %s münti. Teeni neid lennates!" % maxi(0, int(data.price) - profile.wallet)
+		_text(menu_feedback, _t("need_coins", [maxi(0, int(data.price) - profile.wallet)]))
 	elif result == ERR_UNAVAILABLE:
-		menu_feedback.text = "Hooajakingituse aeg on 15.10.–07.11.2026."
+		_text(menu_feedback, _t("gift_dates"))
 	else:
-		menu_feedback.text = "Salvestamine ei õnnestunud. Proovi uuesti."
+		_text(menu_feedback, _t("save_error"))
 	_sync_interface()
 
 
@@ -463,11 +530,37 @@ func _toggle_fire() -> void:
 	_sync_interface()
 
 
-func _credit_coins(amount: int) -> void:
-	if profile.credit_coins(amount) != OK:
-		notification_text = "Müntide salvestamine ei õnnestunud"
+func _reward_flight(coins: int, xp: int) -> void:
+	if profile.award_flight(coins, xp) != OK:
+		notification_text = _t("coin_save_error")
 		toast_remaining = 3.0
-		push_warning("Earned coins could not be saved on this device.")
+		push_warning("Earned flight rewards could not be saved on this device.")
+
+
+func _choose_language(code: String) -> void:
+	if profile.set_language(code) != OK:
+		_text(menu_feedback, _t("save_error"))
+		return
+	CourierText.set_language(profile.language)
+	for node in localized_nodes:
+		_text(node, _t(node.get_meta("loc_key")))
+	_show_menu("home")
+
+
+func _change_pass_page(direction: int) -> void:
+	pass_page = clampi(pass_page + direction, 0, 1)
+	_sync_interface()
+
+
+func _claim_pass_slot(slot: int) -> void:
+	var tier := pass_page * 5 + slot + 1
+	var reward := CourierSeasonPass.reward(tier)
+	var re_equip := profile.pass_claimed.has(tier) and not str(reward.item).is_empty()
+	var result := profile.equip_item(reward.item) if re_equip else profile.claim_pass_reward(tier)
+	_text(menu_feedback, _t("reward_claimed") if result == OK else _t("save_error"))
+	if result == OK:
+		_play_sound("delivery")
+	_sync_interface()
 
 
 func _sync_interface() -> void:
@@ -480,22 +573,50 @@ func _sync_interface() -> void:
 	level_map.visible = is_home and menu_screen == "map"
 	shop.visible = is_home and menu_screen == "shop"
 	preview.visible = is_home and menu_screen == "preview"
+	language_menu.visible = is_home and menu_screen == "languages"
+	season_pass.visible = is_home and menu_screen == "pass"
 	get_node("MenuChrome").visible = is_home
+	get_node("Header/LanguageButton").visible = is_home
+	get_node("Header/LanguageButton").tooltip_text = _t("language_tip")
+	sound_button.tooltip_text = _t("sound_tip")
+	sound_button.accessibility_name = _t("sound_tip")
+	get_node("Header/PauseButton").tooltip_text = _t("pause_tip")
+	get_node("Header/PauseButton").accessibility_name = _t("pause_tip")
 	hud.visible = not is_home
 	hud.modulate.a = 0.2 if is_paused or is_over else 1.0
 	overlay.visible = is_paused or is_over
 	var level_data := _level_data()
-	region_label.text = "100 TASET  ·  SINU KOSMOSESEIKLUS" if is_home else "TASE %02d  ·  %s" % [run.level, level_data.name.to_upper()]
-	wallet_label.text = "%s MÜNTI  ◈" % profile.wallet
-	home_progress.text = "Avatud %s / 100 taset\nLibista laeva · automaattuli aitab teed puhastada" % profile.unlocked_level
-	home_region_label.text = "%02d  //  %s" % [profile.selected_level, level_data.name.to_upper()]
+	_text(region_label, _t("subtitle") if is_home else _t("level_region", [run.level, level_data.name]))
+	_text(wallet_label, _t("wallet", [profile.wallet]))
+	_text(home_progress, _t("home_progress", [profile.unlocked_level]))
+	_text(home_region_label, "%02d // %s" % [profile.selected_level, level_data.name])
 	if home_region_label.get_theme_color("font_color") != level_data.accent:
 		home_region_label.add_theme_color_override("font_color", level_data.accent)
-	home_description.text = level_data.description
-	halloween_label.text = "HALLOWEEN ON KOHAL!\nSinu tasuta Kõrvitsakuller ootab poes →" if CourierCatalogue.halloween_active() and not profile.owned_items.has("pumpkin") else "LIBISTA · TULISTA · VII PAKID KOHALE\nTeeni münte ja leia poest oma stiil."
+	_text(home_description, level_data.description)
+	_text(halloween_label, _t("pass_cta", [profile.pass_xp]))
+	if language_menu.visible:
+		for code in language_buttons:
+			language_buttons[code].set_pressed_no_signal(code == profile.language)
+	if season_pass.visible:
+		_text(pass_progress_label, _t("pass_progress", [profile.pass_xp]) if CourierCatalogue.halloween_active() else _t("pass_ended"))
+		pass_previous.disabled = pass_page == 0
+		pass_next.disabled = pass_page == 1
+		for slot in range(5):
+			var tier := pass_page * 5 + slot + 1
+			var reward := CourierSeasonPass.reward(tier)
+			var claimed := profile.pass_claimed.has(tier)
+			var eligible := profile.pass_xp >= int(reward.xp)
+			var is_item := not str(reward.item).is_empty()
+			_text(pass_rows[slot], _t("coins", [reward.coins]) if not is_item else _t("item_" + str(reward.item)))
+			_text(pass_requirements[slot], _t("tier", [tier]) + " · %s XP" % reward.xp)
+			var button := pass_buttons[slot]
+			button.disabled = not eligible or (claimed and (not is_item or profile.equipped_trail == reward.item))
+			_text(button, _t("claimed") if claimed else (_t("claim") if eligible else _t("need_xp", [int(reward.xp) - profile.pass_xp])))
+			if claimed and is_item:
+				_text(button, _t("equipped") if profile.equipped_trail == reward.item else _t("equip"))
 	if level_map.visible:
-		map_title.text = "%02d–%02d // %s" % [map_page * 10 + 1, map_page * 10 + 10, CourierLevels.get_level(map_page * 10 + 1).name]
-		map_summary.text = "VALITUD TASE %02d · %s\n%s" % [profile.selected_level, level_data.name, level_data.description]
+		_text(map_title, "%02d–%02d // %s" % [map_page * 10 + 1, map_page * 10 + 10, CourierLevels.get_level(map_page * 10 + 1).name])
+		_text(map_summary, _t("selected_level", [profile.selected_level, level_data.name, level_data.description]))
 		map_previous.disabled = map_page == 0
 		map_next.disabled = map_page == 9
 		for i in range(level_buttons.size()):
@@ -504,50 +625,50 @@ func _sync_interface() -> void:
 			var rating := profile.stars_for_level(number)
 			level_buttons[i].disabled = not unlocked
 			level_buttons[i].set_pressed_no_signal(number == profile.selected_level)
-			level_buttons[i].text = "%02d   %s\n%s" % [number, "★".repeat(rating) if rating > 0 else ("VALMIS" if unlocked else "LUKUS"), "%s PAKKI" % CourierLevels.get_level(number).goal]
+			_text(level_buttons[i], "%02d   %s\n%s" % [number, "★".repeat(rating) if rating > 0 else _t("ready" if unlocked else "locked"), _t("parcels", [CourierLevels.get_level(number).goal])])
 	if shop.visible:
 		for id in shop_buttons:
 			var data := CourierCatalogue.item(id)
 			var owned := profile.owned_items.has(id)
 			var equipped: bool = id == profile.equipped_ship or id == profile.equipped_trail
 			var button: Button = shop_buttons[id]
-			button.text = "KASUTUSEL ✓" if equipped else ("KASUTA" if owned else "%s MÜNTI" % data.price)
+			_text(button, _t("equipped") if equipped else (_t("equip") if owned else _t("coins", [data.price])))
 			button.disabled = equipped
 			if data.access == "season_gift" and not owned:
-				button.text = "VÕTA TASUTA" if CourierCatalogue.halloween_active() else "HOOAEG LÄBI"
+				_text(button, _t("claim_free") if CourierCatalogue.halloween_active() else _t("season_over"))
 				button.disabled = not CourierCatalogue.halloween_active()
 			elif data.access == "premium":
-				button.text = "VAATA EELVAADET"
+				_text(button, _t("preview"))
 	sound_button.text = "♪" if profile.sound_enabled else "×"
 	get_node("Header/PauseButton").visible = not is_home and not is_over and not is_paused
-	record_label.text = "SINU REKORD  ·  %s P" % profile.best_score if profile.best_score > 0 else "VÄIKE LAEV  ·  SUUR SEIKLUS"
-	coin_label.text = str(run.collected_coins)
-	package_label.text = "PAKID %s/%s" % [run.delivered, run.delivery_goal]
-	score_label.text = "%s P" % run.score
-	toast_label.text = notification_text
+	_text(record_label, _t("record", [profile.best_score]) if profile.best_score > 0 else _t("tagline"))
+	_text(coin_label, str(run.collected_coins))
+	_text(package_label, _t("packages", [run.delivered, run.delivery_goal]))
+	_text(score_label, _t("score", [run.score]))
+	_text(toast_label, notification_text)
 	toast_label.modulate.a = minf(1.0, toast_remaining * 2.0)
-	fire_button.text = "AUTOTULI\nSEES" if run.auto_fire else "AUTOTULI\nVÄLJAS"
+	_text(fire_button, _t("auto_on" if run.auto_fire else "auto_off"))
 	fire_button.disabled = is_paused or is_over
 	if run.destination_active:
 		var can_land := run.destination.y >= 400.0
-		hint_label.text = "LENDA MÄRGITUD RINGI" if can_land else "SIHTKOHT LÄHENEB"
-		subhint_label.text = "Hoia laeva ringis, kuni pakk on kohal" if can_land else "Maandumisring avaneb kohe."
+		_text(hint_label, _t("land_hint" if can_land else "approach_hint"))
+		_text(subhint_label, _t("land_help" if can_land else "approach_help"))
 	else:
-		hint_label.text = "LIBISTA JA JUHI"
-		subhint_label.text = "Väike: 0  ·  Keskmine: 1–3  ·  Suur: 4–7 münti"
+		_text(hint_label, _t("steer"))
+		_text(subhint_label, _t("rewards_help"))
 	if is_paused:
-		overlay_title.text = "Väike hingetõmme."
-		overlay_subtitle.text = "Sinu teenitud mündid on alles.\nJätka, kui oled valmis."
-		overlay_stats.text = "%s/%s PAKKI  ·  %s P" % [run.delivered, run.delivery_goal, run.score]
-		primary_button.text = "JÄTKA LENDU  →"
+		_text(overlay_title, _t("pause_title"))
+		_text(overlay_subtitle, _t("pause_note"))
+		_text(overlay_stats, _t("pause_stats", [run.delivered, run.delivery_goal, run.score]))
+		_text(primary_button, _t("resume"))
 	elif is_over:
 		var won := run.mode == CourierRun.Mode.WON
-		overlay_title.text = "Tase %02d läbitud!" % run.level if won else "Uus lend ootab."
-		overlay_subtitle.text = "Järgmine tase on nüüd avatud!\nSinu tähed ja mündid on salvestatud." if won else "Teenitud mündid jäävad sulle.\nProovi uuesti või vaata poodi."
+		_text(overlay_title, _t("won_title", [run.level]) if won else _t("lost_title"))
+		_text(overlay_subtitle, _t("won_note" if won else "lost_note"))
 		if won and run.level == CourierLevels.COUNT:
-			overlay_subtitle.text = "Kõik 100 taset on läbitud!\nPüüa igal rajal kolm tähte."
-		overlay_stats.text = "%s P\n%s/%s pakki  ·  +%s münti" % [run.score, run.delivered, run.delivery_goal, run.collected_coins]
-		primary_button.text = "JÄRGMINE TASE  →" if won and run.level < CourierLevels.COUNT else "LENDAME VEEL  →"
+			_text(overlay_subtitle, _t("campaign_note"))
+		_text(overlay_stats, _t("result_stats", [run.score, run.delivered, run.delivery_goal, run.collected_coins]))
+		_text(primary_button, _t("next_level" if won and run.level < CourierLevels.COUNT else "retry"))
 
 
 func _layer(layer_name: String) -> Control:
@@ -561,14 +682,18 @@ func _layer(layer_name: String) -> Control:
 
 func _label(parent: Control, text: String, rect: Rect2, size_px: int, color: Color, bold: bool = false, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var node := Label.new()
-	node.text = text
+	node.text = _t(text) if CourierText.has(text) else text
+	if CourierText.has(text):
+		node.set_meta("loc_key", text)
+		localized_nodes.append(node)
 	node.position = rect.position
 	node.size = rect.size
+	node.clip_text = true
 	node.horizontal_alignment = align
 	node.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	node.add_theme_font_override("font", BOLD if bold else FONT)
-	node.add_theme_font_size_override("font_size", size_px)
+	_font_size(node, size_px)
 	node.add_theme_color_override("font_color", color)
 	parent.add_child(node)
 	return node
@@ -576,24 +701,61 @@ func _label(parent: Control, text: String, rect: Rect2, size_px: int, color: Col
 
 func _button(parent: Control, text: String, rect: Rect2, action: Callable, primary: bool) -> Button:
 	var node := Button.new()
-	node.text = text
+	node.text = _t(text) if CourierText.has(text) else text
+	if CourierText.has(text):
+		node.set_meta("loc_key", text)
+		localized_nodes.append(node)
 	node.position = rect.position
 	node.size = rect.size
+	node.clip_text = true
 	node.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	node.add_theme_font_override("font", BOLD)
-	node.add_theme_font_size_override("font_size", 31)
+	_font_size(node, 31)
 	node.add_theme_color_override("font_color", Color("122e37") if primary else CREAM)
 	node.add_theme_color_override("font_hover_color", Color("122e37") if primary else CREAM)
 	node.add_theme_color_override("font_pressed_color", Color("122e37") if primary else CREAM)
 	node.add_theme_stylebox_override("normal", _style(MINT if primary else Color("172640"), Color("b7ffe4") if primary else Color("38506d"), 26))
 	node.add_theme_stylebox_override("hover", _style(Color("bfffe8") if primary else Color("263c58"), MINT, 26))
 	node.add_theme_stylebox_override("pressed", _style(Color("7bdbb7") if primary else Color("304966"), MINT, 26))
+	node.add_theme_stylebox_override("disabled", _style(Color("101c32"), Color("26374e"), 26))
+	node.add_theme_color_override("font_disabled_color", MUTED)
 	var focus := _style(Color.TRANSPARENT, GOLD, 26)
 	focus.set_border_width_all(4)
 	node.add_theme_stylebox_override("focus", focus)
 	node.pressed.connect(action)
 	parent.add_child(node)
 	return node
+
+
+func _t(key: String, arguments: Array = []) -> String:
+	return CourierText.t(key, arguments)
+
+
+func _font_size(node: Control, value: int) -> void:
+	node.set_meta("base_font", value)
+	node.add_theme_font_size_override("font_size", value)
+
+
+func _text(node: Control, value: String, force: bool = false) -> void:
+	value = CourierText.directional(value)
+	if not force and node.text == value and node.get_meta("fitted_width", -1.0) == node.size.x:
+		return
+	node.text = value
+	var font: Font = node.get_theme_font("font")
+	var size_px := int(node.get_meta("base_font", node.get_theme_font_size("font_size")))
+	var limit := maxf(1.0, node.size.x - 24.0)
+	var lines := value.split("\n")
+	while size_px > 14:
+		var fits := true
+		for line in lines:
+			if font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px).x > limit:
+				fits = false
+				break
+		if fits:
+			break
+		size_px -= 1
+	node.add_theme_font_size_override("font_size", size_px)
+	node.set_meta("fitted_width", node.size.x)
 
 
 func _style(fill: Color, border: Color, radius: int) -> StyleBoxFlat:
@@ -647,13 +809,18 @@ func _draw() -> void:
 		if intro_remaining > 0.0:
 			var opacity := minf(1.0, intro_remaining * 2.0)
 			_panel(Rect2(200, 437, 680, 145), Color(0.045, 0.09, 0.16, opacity * 0.95), Color(theme.accent, opacity * 0.5), 30)
-			_center_text("TASE %02d" % run.level, Vector2(540, 486), 23, Color(theme.accent, opacity))
+			_center_text(_t("level", [run.level]), Vector2(540, 486), 23, Color(theme.accent, opacity))
 			_center_text(theme.name, Vector2(540, 544), 39, Color(CREAM, opacity))
 	if hit_flash > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, CourierRun.WORLD), Color(1.0, 0.37, 0.38, hit_flash * 0.24))
 
 
 func _draw_home() -> void:
+	if menu_screen == "languages":
+		return
+	if menu_screen == "pass":
+		_draw_pass()
+		return
 	if menu_screen == "map":
 		_panel(Rect2(65, 440, 950, 820), Color(0.06, 0.105, 0.19, 0.9), Color("2b405c"), 40)
 		return
@@ -674,6 +841,19 @@ func _draw_home() -> void:
 	_cross(Vector2(330, 990), 13.0, GOLD)
 	_cross(Vector2(745, 1060), 9.0, MINT)
 	_draw_parcel(Vector2(841, 393), 0.75, clock * 0.1)
+
+
+func _draw_pass() -> void:
+	var progress := float(profile.pass_xp) / CourierSeasonPass.MAX_XP
+	draw_line(Vector2(120, 585), Vector2(960, 585), Color("34475e"), 13.0, true)
+	if progress > 0:
+		draw_line(Vector2(120, 585), Vector2(120 + 840 * progress, 585), GOLD, 13.0, true)
+	for slot in range(5):
+		var tier := pass_page * 5 + slot + 1
+		var earned := profile.pass_xp >= tier * CourierSeasonPass.XP_PER_TIER
+		var y := 640 + slot * 174
+		_panel(Rect2(100, y, 880, 150), Color("111f36"), GOLD if earned else Color("34475e"), 28)
+		_draw_star(Vector2(145, y + 74), 22, GOLD if earned else Color("52627c"))
 
 
 func _draw_shop() -> void:
@@ -719,6 +899,16 @@ func _draw_flight() -> void:
 			var at: Vector2 = rock.position - Vector2(0, rock.radius + 18)
 			draw_line(at - Vector2(40, 0), at + Vector2(40, 0), Color("2b405c"), 6.0, true)
 			draw_line(at - Vector2(40, 0), at - Vector2(40, 0) + Vector2(80.0 * hp / max_hp, 0), GOLD, 6.0, true)
+	for shard in debris.shards:
+		var fraction: float = shard.life / shard.duration
+		var tint: Color = shard.color
+		tint.a = fraction * fraction
+		draw_set_transform(shard.position, shard.angle, Vector2.ONE * (0.35 + fraction * 0.65))
+		draw_colored_polygon(shard.points, tint)
+		var edge: Color = tint.lightened(0.32)
+		edge.a = tint.a
+		draw_line(shard.points[0], shard.points[1], edge, 2.0, true)
+		draw_set_transform(Vector2.ZERO)
 	# Keep the ship visible while protected; the shield arc conveys invulnerability.
 	for i in range(1, trail.size()):
 		var tint: Color = CourierCatalogue.item(profile.equipped_trail).color
@@ -754,10 +944,10 @@ func _draw_destination() -> void:
 		draw_arc(pad, CourierRun.DOCK_RADIUS + 23.0, -PI / 2.0, -PI / 2.0 + TAU * minf(run.dock_progress, 1.0), 80, GOLD, 9.0, true)
 	_draw_parcel(pad, 0.55, 0.0)
 	if run.dock_progress > 0.0:
-		_center_text("ANNAN PAKKI ÜLE…", pad + Vector2(0, 161), 23, GOLD)
+		_center_text(_t("docking"), pad + Vector2(0, 161), 23, GOLD)
 	var label_position := Vector2(run.destination.x, maxf(370.0, run.destination.y - 211.0))
 	_panel(Rect2(label_position - Vector2(110, 30), Vector2(220, 60)), MINT, MINT, 24)
-	_center_text("SIHTKOHT", label_position + Vector2(0, 9), 23, Color("183b42"))
+	_center_text(_t("destination"), label_position + Vector2(0, 9), 23, Color("183b42"), 195.0)
 
 
 func _draw_hud() -> void:
@@ -845,7 +1035,10 @@ func _draw_star(at: Vector2, radius: float, tint: Color) -> void:
 	draw_colored_polygon(points, tint)
 
 
-func _center_text(text: String, baseline: Vector2, font_size: int, color: Color) -> void:
+func _center_text(text: String, baseline: Vector2, font_size: int, color: Color, maximum_width: float = 900.0) -> void:
+	text = CourierText.directional(text)
+	while font_size > 14 and BOLD.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > maximum_width:
+		font_size -= 1
 	var width := BOLD.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	draw_string(BOLD, baseline - Vector2(width / 2.0, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 

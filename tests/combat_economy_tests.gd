@@ -125,8 +125,8 @@ func _test_rewards() -> void:
 				all_valid = all_valid and reward >= 1 and reward <= 3
 				observed[reward] = true
 			else:
-				all_valid = all_valid and reward >= 4 and reward <= 7
-	check(all_valid, "actual shots destroy all three sizes with exactly their 0 / 1–3 / 4–7 coin rewards")
+				all_valid = all_valid and reward >= 3 and reward <= 5
+	check(all_valid, "actual shots destroy all three sizes with exactly their 0 / 1–3 / 3–5 coin rewards")
 	check(observed.size() == 3, "medium asteroid rewards actually vary: deterministic trials produce 1, 2 and 3")
 	var state := _quiet_run()
 	state.auto_fire = false

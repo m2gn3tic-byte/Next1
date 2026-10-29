@@ -28,8 +28,8 @@ static func get_level(number: int) -> Dictionary:
 	if index == COUNT - 1:
 		goal = MAX_DELIVERIES
 	return {
-		"name": region[0], "tier": tier, "goal": goal,
-		"description": "%s pakki  ·  Raskus %s/10" % [goal, tier + 1],
+		"name": CourierText.t("region_%s" % tier), "tier": tier, "goal": goal,
+		"description": CourierText.t("level_description", [goal, tier + 1]),
 		"accent": Color(region[1]), "planet_tint": region[2], "sky_tint": region[3],
 		"speed": 260.0 + tier * 18.0 + stop * 1.5,
 		"spawn_interval": maxf(0.80, 1.12 - tier * 0.030 - stop * 0.004),

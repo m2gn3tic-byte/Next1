@@ -21,5 +21,9 @@ func _initialize() -> void:
 		file.store_string(str(license_name) + "\n" + str(licenses[license_name]) + "\n\n")
 	file.store_string("\nDEJAVU FONTS\n\n")
 	file.store_string(FileAccess.get_file_as_string("res://assets/fonts/LICENSE.txt"))
+	for name in ["OFL-CJK.txt", "OFL-Devanagari.txt", "OFL-Thai.txt"]:
+		file.store_string("\n\nNOTO FONT LICENSE — " + name + "\n\n")
+		file.store_string(FileAccess.get_file_as_string("res://assets/fonts/" + name))
+	file.store_string("\nCJK UI subset renamed Courier CJK UI; see tools/subset_cjk.py.\n")
 	file.close()
 	quit(0)

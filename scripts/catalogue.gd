@@ -6,6 +6,7 @@ const HALLOWEEN_START := 20261015
 const HALLOWEEN_END := 20261107
 const SHOP_IDS := ["aurora", "comet", "violet_trail", "gold_trail", "pumpkin", "nightwing"]
 const ITEMS := {
+	"moon_trail": {"name": "Kuukiir", "kind": "trail", "price": 0, "access": "pass", "color": Color("cad7ff")},
 	"courier": {"name": "Postilind", "kind": "ship", "price": 0, "access": "starter", "art": "res://assets/ship.svg", "color": Color("9af5d3")},
 	"aurora": {"name": "Virmaline", "kind": "ship", "price": 90, "access": "coins", "art": "res://assets/aurora.svg", "color": Color("9af5d3")},
 	"comet": {"name": "Komeet", "kind": "ship", "price": 180, "access": "coins", "art": "res://assets/comet.svg", "color": Color("8cdaff")},
@@ -18,7 +19,10 @@ const ITEMS := {
 
 
 static func item(id: String) -> Dictionary:
-	return ITEMS.get(id, {}).duplicate(true)
+	var data: Dictionary = ITEMS.get(id, {}).duplicate(true)
+	if not data.is_empty():
+		data["name"] = CourierText.t("item_" + id)
+	return data
 
 
 static func date_number(date: Dictionary) -> int:

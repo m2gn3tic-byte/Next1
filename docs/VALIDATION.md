@@ -43,3 +43,15 @@ Eraldatud brauseriprofiilis kinnitati ka IndexedDB-sse salvestatud edenemise taa
 Brauseri ostukatsed kasutasid eraldatud prooviprofiili ja ettevalmistatud 250 testmünti. Ühegi avaliku mängija raha ega salvestust ei muudetud ning mängus ei ole proovimüntide väljastamise liidest. Ekraanipildid `08`–`13` on selle prooviprofiili omad. Halloweeni puutevõtmist kontrollitakse brauseris ainult tegeliku hooaja ajal; kuupäevade reegleid kontrollivad aastaringselt GDScripti testid.
 
 Päris rahaga maksed, Androidi APK/AAB ja pärisseadme test ei kuulu sellesse väljalaskesse. Hooaja seadmeaja kontroll on prototüübilahendus. Täpne arendusplaan on `docs/ROADMAP.md`.
+
+## Keeled, hooajarada ja asteroidikillud — 29.10.2026
+
+- **479 automaatkontrolli läbisid:** 33 põhireeglite/stseeni, 225 taseme/profiili, 25 edenemise stseeni, 48 lahingu/majanduse, 142 keele/hooajaraja/kildude ning 6 Pythoni kontrolli. Ükski ei ebaõnnestunud.
+- Kõigi kolme asteroidiklassi auhindu kontrolliti päris mürsutabamustega. Suur annab nüüd 3–5 münti; ühe asteroidi ülempiir on viis nii mängumudelis kui püsiva lennuauhinna liideses.
+- Kildude kontroll kinnitas kogu ringi nelja veerandisse levimise, polügoonide pöörlemise ja liikumise, eluea lõpus eemaldamise, 240 killu mahupiiri ning pausi/jätkamise. Killud ei tekita uusi asteroide ega lisaauhindu.
+- Kõigil 24 tõlkepakil on samad 117 võtit ja sobivad vormindusparameetrid. Iga keele kirjamärgid ning menüüde tekstilaiused kontrolliti tegelike fondifailidega. Araabia arvusuhete suunda ja markerite idempotentsust kontrolliti eraldi.
+- Hooajaraja kontrollid hõlmasid XP teenimist, hooaja lõppu, ülempiiri, ühekorralisi nõudeid, puuduvat XP-d, kümnenda astme kosmeetikat, uuesti varustamist, vanu/vigaseid salvestusi ja ebaõnnestuva tehingu täielikku tagasipööramist.
+- Kõik kolm päris WebAssembly-mängu Chromiumi kontrolli läbisid: `browser_smoke.py`, `browser_economy.py`, `browser_season_language.py`. Alles jäid puutejuhtimine, paus, pood, vanade salvestuste üleminek ja 1080×1920 renderdamine.
+- Uus brauserikontroll vajutas läbi **kõik 24 keelevalikut**. Araabia ja jaapani pealkirjade tegelik pikslikujutis säilis pärast kogu mängumootori uuesti laadimist. Hooajaraja mündi- ja kosmeetikaauhinnad võeti päris nuppudega ning keel, XP, võetud astmed, varustus ja rahakott taastusid pärast lehe laadimist. JavaScripti, WebGL-i ja Godoti käitusvigu ei esinenud.
+
+Brauseri hooajaauhinnad kontrolliti eraldatud prooviprofiiliga, millele valmistati ette 2000 XP; see ei muuda avalike mängijate salvestusi. Ekraanipildid `14`–`22` näitavad keelevalikut, eri kirju ja hooajarada. Tõlked vajavad enne poe lõppväljalaset emakeelsete mängijate tagasisidet. Pärisrahaga ostud ja päris Android-seadme kontroll on endiselt järgmised etapid.

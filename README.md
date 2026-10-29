@@ -1,6 +1,6 @@
 # Kosmosekuller 🚀
 
-Ühe sõrmega juhitav 2D-kosmoseseiklus Androidi jaoks. **Godot 4.6.3 mängitav prototüüp: 100 taset, automaattuli, kolm asteroidiklassi, püsiv rahakott ja kosmeetikapood.**
+Ühe sõrmega juhitav 2D-kosmoseseiklus Androidi jaoks. **Godot 4.6.3 mängitav prototüüp: 100 taset, automaattuli, kolm asteroidiklassi, püsiv rahakott, kosmeetikapood, 24 keelt ja tasuta Halloweeni hooajarada.**
 
 Mängi veebis: **https://m2gn3tic-byte.github.io/Next1/**.
 
@@ -20,9 +20,9 @@ Võit avab järgmise taseme ning annab allesjäänud kilpide järgi 1–3 tähte
 | --- | --- | --- | --- |
 | Väike | 1 | 0 | 10 |
 | Keskmine | 3 | Juhuslikult 1–3 | 30 |
-| Suur | 6 | Juhuslikult 4–7 | 60 |
+| Suur | 6 | Juhuslikult 3–5 | 60 |
 
-Auhind tuleb ainult tulistades purustamise eest. Rammimine võtab ühe kilbi. Mürsud, tabamused, allesjäänud vastupidavus ja purunemine on nähtavad; mängupaus peatab ka mürsud ja efektid.
+Auhind tuleb ainult tulistades purustamise eest. Rammimine võtab ühe kilbi. Ühe asteroidi mündiauhinna ülempiir on **5**. Mürsud, tabamused, allesjäänud vastupidavus ja purunemine on nähtavad. Purunemisel lendavad ebakorrapärased pöörlevad kivikillud kogu 360° ulatuses laiali, kahanevad ja hajuvad 0,65–1,25 sekundiga. Need on visuaalsed ega anna lisamünte. Mängupaus peatab ka mürsud ja kõik killud; korraga on lubatud kuni 240 kildu.
 
 Lennurajal tekib mündilainega senise kolme asemel **üks münt**, sama 2,1-sekundilise intervalliga. Korjatud münt annab 20 punkti; pakk annab 150 punkti ja **2 münti**. Võiduboonus on 300 + 100 × allesjäänud kilpide arv punkti. Punkte poes kulutada ei saa.
 
@@ -42,6 +42,22 @@ Teenitud mündid lisatakse kohe püsivasse rahakotti; need jäävad alles ka kao
 Eseme omamine ja kasutatav laev/jälg salvestuvad; algse laeva ja jälje saab tasuta tagasi valida. Kõrvitsakuller jääb ka pärast hooaega kasutatavaks. Kõik laevad kasutavad sama relva, kiirust ja kilpe. Pood muudab välimust.
 
 Hooaeg kasutab prototüübis seadme UTC kuupäeva. Enne päris rahaga müümist on vaja Google Play Billingut, ostude tõendamist/taastamist ja hooaja usaldatud aega. Veebiversioon ei küsi makseandmeid ega anna premium-eset kohalike müntide eest. Arenduse [plaan ja järgmised etapid](docs/ROADMAP.md).
+
+## Keeled
+
+Menüü **文A** avab 24 salvestuva keelevaliku: eesti, inglise, hispaania, portugali (Brasiilia), prantsuse, saksa, itaalia, hollandi, poola, rumeenia, soome, rootsi, türgi, vene, ukraina, kreeka, indoneesia, vietnami, tai, araabia, hindi, lihtsustatud hiina, jaapani ja korea.
+
+Täiesti uue mängija keel valitakse seadme järgi; toetamata keele puhul kasutatakse inglise keelt. Senised eesti keeles salvestused säilitavad eesti keele. Valikut saab alati peamenüüs muuta. Tõlgitud on menüüd, tasemepiirkonnad, juhised, pood, tulemused, hüpikteated ja hooajarada. Araabia tekst kasutab õiget kirjasuunda ning eraldab arvusuhted ja XP vasakult paremale loetavateks osadeks.
+
+Kõik tõlked ja fondid on kaasa pakitud, mäng ei vaja tõlketeenust. Noto fondid lisavad araabia kõrval ka hindi, tai ja Ida-Aasia kirjamärkide toe. CJK-fondist kaasatakse ainult kasutatavad märgid, ligikaudu 230 kB. Täpne muutmis- ja fondijuhend: [LOCALIZATION.md](docs/LOCALIZATION.md). Tõlked on prototüübi esialgne tekst; enne poeväljalaset on vaja emakeelsete mängijate keelelist tagasisidet.
+
+## Tasuta Halloweeni battle pass
+
+Hooaeg on **15.10.–07.11.2026**, kümme astet, iga aste vajab 200 XP (kokku 2000). Asteroidi purustamine annab 5 XP, mündi korjamine 2 XP, tarne 25 XP ja võit 50 XP. XP ja teenitud mündid salvestatakse ühe tehinguna. XP kasv peatub hooaja lõppedes; juba teenitud auhindu saab hiljemgi võtta.
+
+Esimesed üheksa astet annavad vastavalt 10, 15, 20, 25, 30, 35, 40, 45 ja 50 münti. Kümnes avab **Kuukiire lennujälje**, mis jääb alles ja mida saab hooajarajalt uuesti kasutusele võtta. Sama auhinda saab võtta ainult ühe korra. Need on eraldi hooajaauhinnad; ühe asteroidi auhind jääb alati kuni viiele mündile.
+
+Kõik kümme auhinda on tasuta teenitavad. Premium-osa on informatiivne eelvaade; ostu ega XP-ostmise võimalust pole. Hooaeg kasutab prototüübis seadme UTC aega ja kohalikku salvestust; pärisostud vajavad hiljem usaldatud ostu- ja hooajateenust.
 
 ## Käivitamine
 
@@ -85,6 +101,7 @@ Põhireeglite, tervikliku missiooni, salvestamise ja tegeliku stseeni juhtnuppud
 ./tools/godot.sh --headless --script res://tests/level_tests.gd
 ./tools/godot.sh --headless --script res://tests/progression_scene_tests.gd
 ./tools/godot.sh --headless --script res://tests/combat_economy_tests.gd
+./tools/godot.sh --headless --script res://tests/localization_pass_debris_tests.gd
 python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
@@ -93,6 +110,7 @@ Brauseritest vajab Python Playwrighti, Pillow't ja Chromiumi ning käivitatud ko
 ```bash
 python3 tests/browser_smoke.py
 python3 tests/browser_economy.py
+python3 tests/browser_season_language.py
 ```
 
 Brauseritest käivitab päriselt eksporditud WebAssembly-mängu, kontrollib sõrmega lohistamist, pausi ja jätkamist, klaviatuuri ning eri ekraanisuhete paigutust. Poe brauserikontroll proovib lisaks oste, tasuta kingitust, salvestuse üleminekut ja nähtavat tulistamist eraldatud prooviprofiilis. Ekraanipildid salvestatakse kausta `artifacts/`. Pilvekeskkonna võrgupiirangute korral tuleb server ja brauser käivitada tööriista lubatud võrgurežiimis.
@@ -105,6 +123,9 @@ Brauseritest käivitab päriselt eksporditud WebAssembly-mängu, kontrollib sõr
 | `scripts/main.gd` | Puute- ja klaviatuurijuhtimine, kasutajaliides, joonistamine ja sünteesitud helid |
 | `scripts/profile.gd` | Edenemine, rahakott, kosmeetika ja sätted |
 | `scripts/catalogue.gd` | Kosmeetika hinnad, õigused ja Halloweeni aeg |
+| `scripts/text.gd`, `assets/i18n/` | 24 keele tekstid, seadmekeele valik ja arvusuund |
+| `scripts/season_pass.gd` | Kümne tasuta hooajaauhinna määratlus |
+| `scripts/debris.gd` | Piiratud mahuga pöörlevad ja hajuvad asteroidikillud |
 | `scripts/levels.gd` | 100 taseme tarneeesmärgid, piirkonnad ja raskus |
 | `assets/` | Selle mängu jaoks loodud SVG-graafika ja DejaVu fondid koos litsentsiga |
 | `tests/` | Mängureeglite, stseeni ja brauseri kontrollid |

@@ -3,6 +3,7 @@ extends RefCounted
 ## Deterministic game rules, independent of drawing, audio and platform input.
 
 signal event(kind: String, at: Vector2, amount: int)
+signal asteroid_shattered(at: Vector2, radius: float, variant: int)
 
 enum Mode { READY, FLYING, PAUSED, WON, LOST }
 
@@ -13,6 +14,7 @@ const BULLET_SPEED := 1450.0
 const FIRE_INTERVAL := 0.24
 const ROCK_RADII := [48.0, 85.0, 126.0]
 const ROCK_HP := [1, 3, 6]
+const MAX_ASTEROID_COINS := 5
 const DOCK_RADIUS := 110.0
 const DOCK_TIME := 0.5
 const MAX_SHIELDS := 3
@@ -265,10 +267,12 @@ func _hit_asteroid(index: int) -> void:
 	if size_class == 1:
 		reward = rng.randi_range(1, 3)
 	elif size_class == 2:
-		reward = rng.randi_range(4, 7)
+		reward = rng.randi_range(3, MAX_ASTEROID_COINS)
+	reward = mini(reward, MAX_ASTEROID_COINS)
 	var at: Vector2 = rock.position
 	asteroids.remove_at(index)
 	destroyed += 1
 	collected_coins += reward
 	score += [10, 30, 60][clampi(size_class, 0, 2)]
+	asteroid_shattered.emit(at, float(rock.radius), int(rock.variant))
 	event.emit("asteroid_destroyed", at, reward)

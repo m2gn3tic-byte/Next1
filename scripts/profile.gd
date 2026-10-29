@@ -5,6 +5,7 @@ extends RefCounted
 const MAX_RATING := 3
 const LEVELS := preload("res://scripts/levels.gd")
 const CATALOGUE := preload("res://scripts/catalogue.gd")
+const PASS := preload("res://scripts/season_pass.gd")
 const MAX_BALANCE := 999999999
 
 var best_score := 0
@@ -18,6 +19,9 @@ var owned_items: Array[String] = ["courier", "mint_trail"]
 var equipped_ship := "courier"
 var equipped_trail := "mint_trail"
 var auto_fire := true
+var language := "et"
+var pass_xp := 0
+var pass_claimed: Array[int] = []
 var storage_path: String
 
 
@@ -36,7 +40,11 @@ func _init(path: String = "user://courier.cfg") -> void:
 	if saved_sound is bool:
 		sound_enabled = saved_sound
 	_load_progress(file)
+	_load_pass(file)
 	_load_inventory(file)
+	var saved_language: Variant = file.get_value("settings", "language", "et")
+	if saved_language is String and CourierText.supports(saved_language):
+		language = saved_language
 
 
 func _load_progress(file: ConfigFile) -> void:
@@ -110,7 +118,7 @@ func _load_inventory(file: ConfigFile) -> void:
 		for id in saved_owned:
 			if id is String and not owned_items.has(id):
 				var data := CATALOGUE.item(id)
-				if not data.is_empty() and data.access in ["coins", "season_gift"]:
+				if not data.is_empty() and (data.access in ["coins", "season_gift"] or (data.access == "pass" and pass_claimed.has(10))):
 					owned_items.append(id)
 	var ship: Variant = file.get_value("inventory", "ship", "courier")
 	var tail: Variant = file.get_value("inventory", "trail", "mint_trail")
@@ -137,7 +145,7 @@ func acquire_item(id: String, date: Dictionary = {}) -> Error:
 	var data := CATALOGUE.item(id)
 	if data.is_empty():
 		return ERR_INVALID_PARAMETER
-	if data.access == "premium":
+	if data.access in ["premium", "pass"]:
 		return ERR_UNAVAILABLE
 	if owned_items.has(id):
 		return ERR_ALREADY_EXISTS
@@ -178,12 +186,80 @@ func equip_item(id: String) -> Error:
 	return result
 
 
+func _load_pass(file: ConfigFile) -> void:
+	if file.get_value("season_pass", "id", "") != PASS.ID:
+		return
+	var xp: Variant = file.get_value("season_pass", "xp", 0)
+	if xp is int and xp >= 0 and xp <= PASS.MAX_XP:
+		pass_xp = xp
+	var claimed: Variant = file.get_value("season_pass", "claimed", [])
+	if claimed is Array:
+		for tier in claimed:
+			if tier is int and tier >= 1 and tier <= PASS.TIER_COUNT and tier * PASS.XP_PER_TIER <= pass_xp and not pass_claimed.has(tier):
+				pass_claimed.append(tier)
+
+
+func set_language(code: String) -> Error:
+	if not CourierText.supports(code):
+		return ERR_INVALID_PARAMETER
+	var previous := language
+	language = code
+	var result := save()
+	if result != OK:
+		language = previous
+	return result
+
+
+func award_flight(coins: int, xp: int, date: Dictionary = {}) -> Error:
+	if coins < 0 or coins > 5 or xp < 0 or xp > 100 or (coins == 0 and xp == 0) or coins > MAX_BALANCE - wallet:
+		return ERR_INVALID_PARAMETER
+	var previous_xp := pass_xp
+	wallet += coins
+	if CATALOGUE.halloween_active(date):
+		pass_xp = mini(PASS.MAX_XP, pass_xp + xp)
+	if coins == 0 and pass_xp == previous_xp:
+		return OK
+	var result := save()
+	if result != OK:
+		wallet -= coins
+		pass_xp = previous_xp
+	return result
+
+
+func claim_pass_reward(tier: int) -> Error:
+	var reward := PASS.reward(tier)
+	if reward.is_empty():
+		return ERR_INVALID_PARAMETER
+	if pass_claimed.has(tier):
+		return ERR_ALREADY_EXISTS
+	if pass_xp < int(reward.xp):
+		return ERR_UNAUTHORIZED
+	if int(reward.coins) > MAX_BALANCE - wallet:
+		return ERR_INVALID_PARAMETER
+	var previous_items := owned_items.duplicate()
+	var previous_trail := equipped_trail
+	wallet += int(reward.coins)
+	if not str(reward.item).is_empty():
+		if not owned_items.has(reward.item):
+			owned_items.append(reward.item)
+		equipped_trail = reward.item
+	pass_claimed.append(tier)
+	var result := save()
+	if result != OK:
+		wallet -= int(reward.coins)
+		owned_items = previous_items
+		equipped_trail = previous_trail
+		pass_claimed.erase(tier)
+	return result
+
+
 func save() -> Error:
 	var file := ConfigFile.new()
 	file.set_value("records", "score", best_score)
 	file.set_value("records", "deliveries", best_deliveries)
 	file.set_value("settings", "sound", sound_enabled)
 	file.set_value("settings", "auto_fire", auto_fire)
+	file.set_value("settings", "language", language)
 	file.set_value("progress", "unlocked_level", unlocked_level)
 	file.set_value("progress", "selected_level", selected_level)
 	file.set_value("progress", "stars", level_stars)
@@ -191,6 +267,9 @@ func save() -> Error:
 	file.set_value("inventory", "owned", owned_items)
 	file.set_value("inventory", "ship", equipped_ship)
 	file.set_value("inventory", "trail", equipped_trail)
+	file.set_value("season_pass", "id", PASS.ID)
+	file.set_value("season_pass", "xp", pass_xp)
+	file.set_value("season_pass", "claimed", pass_claimed)
 	# Keep the previous complete save if writing the replacement fails.
 	var temporary := storage_path + ".tmp"
 	var result := file.save(temporary)
