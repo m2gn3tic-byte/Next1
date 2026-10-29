@@ -1,0 +1,24 @@
+KOSMOSEKULLER — ESIMENE MÄNGITAV PROTOTÜÜP
+
+1. Paki ZIP lahti oma arvutis.
+2. Ava terminal lahti pakitud kaustas ja käivita:
+   python3 -m http.server 8060
+   Windowsis sobib ka: py -m http.server 8060
+3. Ava brauseris http://localhost:8060
+
+Mäng vajab kohalikku HTTP-serverit: index.html topeltklõpsuga avamine ei tööta.
+Mäng ise ei kasuta väliseid teenuseid, kontot ega serveripoolset andmebaasi.
+
+JUHTIMINE
+Telefon: libista sõrmega ekraanil. Laev liigub sõrmega kaasa.
+Arvuti: lohista hiirega või kasuta nooleklahve / WASD.
+P või Esc: paus. Enter: alusta või jätka.
+
+EESMÄRK
+Vii kõik viis pakki planeetidele. Kui sihtkoht saabub, lenda helendavasse
+maandumisringi ja püsi seal pool sekundit. Asteroidid võtavad ühe kilbi;
+kolme kilbi kaotamisel lõpeb lend. Mündid ja kohaletoimetamised annavad punkte.
+Rekord ja helieelistus salvestatakse samasse brauserisse kohapeal.
+
+See on brauseris ja Godotis mängitav prototüüp. Androidi APK/AAB, päristelefonil
+testimine, reklaamid ja ostud ei kuulu sellesse esimesse versiooni.
