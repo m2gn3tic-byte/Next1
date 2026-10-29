@@ -1,4 +1,4 @@
-KOSMOSEKULLER — ESIMENE MÄNGITAV PROTOTÜÜP
+KOSMOSEKULLER — 100 TASET JA HALLOWEEN
 
 1. Paki ZIP lahti oma arvutis.
 2. Ava terminal lahti pakitud kaustas ja käivita:
@@ -13,15 +13,26 @@ JUHTIMINE
 Telefon: libista sõrmega ekraanil. Laev liigub sõrmega kaasa.
 Arvuti: lohista hiirega või kasuta nooleklahve / WASD.
 P või Esc: paus. Enter: alusta või jätka.
+Automaattuld saab lülitada all paremal olevast nupust või tühikuklahviga.
 
 EESMÄRK
-Vali tasemevalikust avatud piirkond ja vii kõik viis pakki planeetidele.
-Viis tarnet avavad järgmise piirkonna. Allesjäänud kilbid annavad 1–3 tähte.
-Kui sihtkoht saabub, lenda helendavasse
-maandumisringi ja püsi seal pool sekundit. Asteroidid võtavad ühe kilbi;
-kolme kilbi kaotamisel lõpeb lend. Mündid ja kohaletoimetamised annavad punkte.
-Teine ja neljas tarne taastavad ühe puuduva kilbi. Avatud piirkonnad, tähed,
-tasemevalik, rekord ja helieelistus salvestatakse samasse brauserisse kohapeal.
+Vali avatud tase ja vii selle 2–7 pakki planeetidele. Kampaanias on 100 taset.
+Võit avab järgmise taseme. Allesjäänud kilbid annavad 1–3 tähte.
+Maandumiseks püsi helendavas ringis pool sekundit. Asteroid võtab ühe kilbi;
+kolme kilbi kaotamisel lõpeb lend. Iga teine tarne taastab ühe puuduva kilbi,
+kui missioon veel jätkub.
 
+TULISTAMINE JA POOD
+Väike asteroid: 1 tabamus ja 0 münti.
+Keskmine asteroid: 3 tabamust ja juhuslikult 1–3 münti.
+Suur asteroid: 6 tabamust ja juhuslikult 4–7 münti.
+Lennuraja münt annab 1 mündi ja 20 punkti; pakk annab 2 münti ja 150 punkti.
+Teenitud mündid jäävad alles ka kaotusel või menüüsse naastes.
+Poes saab müntidega laevavälimusi ja lennujälgi. Kõigil laevadel on samad võimed.
+Kõrvitsakuller on tasuta Halloweeni kingitus 15.10.–07.11.2026, mida saad pärast
+hooaega edasi kasutada. Tasulise Öötiiva eelvaade ei paku veel pärisoste.
+
+Edenemine, rahakott, omatud esemed ja sätted salvestatakse samasse brauserisse.
+Brauseri andmete kustutamine eemaldab ka mängusalvestuse. Pilvesünkroonimist pole.
 See on brauseris ja Godotis mängitav prototüüp. Androidi APK/AAB, päristelefonil
-testimine, reklaamid ja ostud ei kuulu sellesse esimesse versiooni.
+testimine, reklaamid ja pärisostud lisanduvad järgmistes etappides.

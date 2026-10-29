@@ -111,7 +111,7 @@ func _test_deliveries() -> void:
 	state.target = state.ship
 	for i in range(33):
 		state.step(1.0 / 60.0)
-	check(state.delivered == 1 and state.score == 150 and state.collected_coins == 5 and not state.destination_active, "holding in the ring delivers a parcel and awards its reward once")
+	check(state.delivered == 1 and state.score == 150 and state.collected_coins == 2 and not state.destination_active, "holding in the ring delivers a parcel and awards its reward once")
 	check(state.next_destination > state.elapsed and state.invincible_for > 0.0, "delivery leaves a safe interval before the next destination")
 	state.destination_active = true
 	state.destination = Vector2(540, 540)
@@ -148,9 +148,9 @@ func _test_complete_flight() -> void:
 					desired.x = 170.0 if rock.position.x > 540.0 else 910.0
 			state.steer(desired)
 		state.step(1.0 / 60.0)
-	check(state.mode == CourierRun.Mode.WON and state.delivered == 5, "pilot completes all five actual deliveries with generated hazards")
-	check(state.score >= 1150 and state.collected_coins >= 25, "completed mission includes delivery and completion rewards")
-	check(state.elapsed > 25.0 and state.elapsed < 140.0, "complete mission has a bounded, playable duration")
+	check(state.mode == CourierRun.Mode.WON and state.delivered == state.delivery_goal, "pilot completes the actual variable-length mission with generated hazards")
+	check(state.score >= 700 and state.collected_coins >= 4, "completed mission includes delivery and completion rewards")
+	check(state.elapsed > 15.0 and state.elapsed < 140.0, "complete mission has a bounded, playable duration")
 
 
 func _test_profile() -> void:

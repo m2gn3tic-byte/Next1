@@ -11,6 +11,13 @@ const MINT := Color("9af5d3")
 const CREAM := Color("fff4d9")
 const MUTED := Color("97aac6")
 const GOLD := Color("ffcf6d")
+const SHIPS := {
+	"courier": SHIP,
+	"aurora": preload("res://assets/aurora.svg"),
+	"comet": preload("res://assets/comet.svg"),
+	"pumpkin": preload("res://assets/pumpkin.svg"),
+	"nightwing": preload("res://assets/nightwing.svg"),
+}
 
 var run := CourierRun.new()
 var profile: CourierProfile
@@ -53,6 +60,22 @@ var level_buttons: Array[Button] = []
 var region_label: Label
 var home_region_label: Label
 var home_description: Label
+var menu_screen := "home"
+var map_page := 0
+var level_map: Control
+var shop: Control
+var preview: Control
+var wallet_label: Label
+var map_title: Label
+var map_summary: Label
+var map_previous: Button
+var map_next: Button
+var shop_buttons: Dictionary = {}
+var menu_feedback: Label
+var fire_button: Button
+var preview_id := "nightwing"
+var home_progress: Label
+var halloween_label: Button
 
 
 func _ready() -> void:
@@ -127,8 +150,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
 			_toggle_pause()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_SPACE and run.mode == CourierRun.Mode.FLYING:
+			_toggle_fire()
+			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ENTER or event.keycode == KEY_SPACE:
-			if run.mode == CourierRun.Mode.READY:
+			if run.mode == CourierRun.Mode.READY and menu_screen in ["home", "map"]:
 				_start_run()
 			elif run.mode == CourierRun.Mode.WON or run.mode == CourierRun.Mode.LOST:
 				_primary_action()
@@ -169,7 +195,9 @@ func _pause_for_background() -> void:
 
 
 func _start_run() -> void:
+	menu_screen = "home"
 	run.begin(-1, clampi(profile.selected_level, 1, profile.unlocked_level))
+	run.auto_fire = profile.auto_fire
 	last_mode = run.mode
 	drag_id = -1
 	particles.clear()
@@ -185,7 +213,9 @@ func _start_run() -> void:
 
 
 func _go_home() -> void:
+	menu_screen = "home"
 	run.mode = CourierRun.Mode.READY
+	last_mode = run.mode
 	drag_id = -1
 	particles.clear()
 	rings.clear()
@@ -206,15 +236,17 @@ func _toggle_pause() -> void:
 func _on_run_event(kind: String, at: Vector2, amount: int) -> void:
 	match kind:
 		"coin":
+			_credit_coins(amount)
 			_burst(at, GOLD, 10)
-			floaters.append({"position": at, "text": "+20", "color": GOLD, "life": 0.8})
+			floaters.append({"position": at, "text": "+1 MÜNT", "color": GOLD, "life": 0.8})
 			_play_sound("coin")
 		"delivery":
+			_credit_coins(2)
 			var accent: Color = _level_data().accent
 			_burst(at, accent, 58)
 			rings.append({"position": at, "color": accent, "life": 1.0})
-			floaters.append({"position": at - Vector2(0, 130), "text": "+150  ·  PAKK KOHAL", "color": GOLD, "life": 1.3})
-			notification_text = "Pakk kohal!  +150"
+			floaters.append({"position": at - Vector2(0, 130), "text": "+150 P  ·  +2 MÜNTI", "color": GOLD, "life": 1.3})
+			notification_text = "Pakk kohal!  +150 P · +2 münti"
 			toast_remaining = 2.3
 			_play_sound("delivery")
 		"destination":
@@ -230,6 +262,15 @@ func _on_run_event(kind: String, at: Vector2, amount: int) -> void:
 			rings.append({"position": at, "color": MINT, "life": 0.8})
 			_burst(at, MINT, 20)
 			floaters.append({"position": at - Vector2(0, 75), "text": "+1 KILP", "color": MINT, "life": 1.6})
+		"asteroid_hit":
+			_burst(at, Color("b5d8ef"), 5)
+		"asteroid_destroyed":
+			_burst(at, GOLD if amount > 0 else MUTED, 28)
+			rings.append({"position": at, "color": GOLD if amount > 0 else MINT, "life": 0.5})
+			floaters.append({"position": at, "text": "+%s MÜNTI" % amount if amount > 0 else "+10 P", "color": GOLD, "life": 1.0})
+			if amount > 0:
+				_credit_coins(amount)
+			_play_sound("rock")
 		"won":
 			_burst(Vector2(540.0, 485.0), GOLD, 90)
 			_play_sound("delivery")
@@ -256,31 +297,91 @@ func _build_interface() -> void:
 	pause_button.accessibility_name = "Peata lend"
 
 	home = _layer("Home")
-	_label(home, "VALI OMA JÄRGMINE SIHTKOHT", Rect2(130, 496, 820, 48), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(home, "KOSMOSEPOST // 100 SIHTKOHTA", Rect2(130, 496, 820, 48), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
 	_label(home, "Galaktika ootab.", Rect2(120, 568, 840, 104), 68, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(home, "Kolm piirkonda. Viis pakki igas lennus.\nAva järgmine rada ja kogu tähti.", Rect2(150, 702, 780, 100), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	home_progress = _label(home, "", Rect2(150, 702, 780, 100), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
 	home_region_label = _label(home, "", Rect2(180, 844, 720, 48), 27, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
-	home_description = _label(home, "", Rect2(140, 1132, 800, 40), 23, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	for i in range(CourierLevels.COUNT):
-		var level_number := i + 1
-		var button := _button(home, "", Rect2(150 + i * 268, 1190, 244, 115), _select_level.bind(level_number), false)
-		button.name = "Level%sButton" % level_number
+	home_description = _label(home, "", Rect2(140, 1132, 800, 45), 26, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	var map_button := _button(home, "TASEMED  →", Rect2(150, 1190, 376, 110), _show_menu.bind("map"), false)
+	map_button.name = "MapButton"
+	var shop_button := _button(home, "POOD  →", Rect2(554, 1190, 376, 110), _show_menu.bind("shop"), false)
+	shop_button.name = "ShopButton"
+	var start := _button(home, "ALUSTA LENDU  →", Rect2(150, 1364, 780, 116), _start_run, true)
+	start.name = "StartButton"
+	halloween_label = _button(home, "", Rect2(120, 1580, 840, 130), _show_menu.bind("shop"), false)
+	halloween_label.name = "SeasonButton"
+	halloween_label.add_theme_font_size_override("font_size", 27)
+	halloween_label.add_theme_color_override("font_color", GOLD)
+	record_label = _label(home, "", Rect2(150, 1770, 780, 48), 24, GOLD, false, HORIZONTAL_ALIGNMENT_CENTER)
+
+	level_map = _layer("LevelMap")
+	_button(level_map, "← MENÜÜ", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
+	map_title = _label(level_map, "", Rect2(100, 360, 880, 70), 37, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	for i in range(10):
+		var button := _button(level_map, "", Rect2(100 + (i % 2) * 460, 470 + int(i / 2) * 155, 420, 132), _choose_map_slot.bind(i), false)
+		button.name = "Level%sButton" % (i + 1)
 		button.toggle_mode = true
-		button.add_theme_font_size_override("font_size", 22)
+		button.add_theme_font_size_override("font_size", 28)
 		button.add_theme_stylebox_override("disabled", _style(Color("101c32"), Color("26374e"), 26))
 		button.add_theme_color_override("font_disabled_color", Color("60718b"))
 		level_buttons.append(button)
-	var start := _button(home, "ALUSTA LENDU  →", Rect2(150, 1364, 780, 116), _start_run, true)
-	start.name = "StartButton"
-	_label(home, "Libista laeva. Väldi asteroide.\nPeatu planeedi maandumisringis.", Rect2(150, 1576, 780, 110), 27, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	record_label = _label(home, "", Rect2(150, 1770, 780, 48), 24, GOLD, false, HORIZONTAL_ALIGNMENT_CENTER)
+	map_summary = _label(level_map, "", Rect2(100, 1320, 880, 110), 29, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	var map_start := _button(level_map, "LENDA VALITUD TASEMELE  →", Rect2(100, 1490, 880, 110), _start_run, true)
+	map_start.name = "StartButton"
+	map_previous = _button(level_map, "← EELMISED", Rect2(100, 1690, 420, 90), _change_map_page.bind(-1), false)
+	map_previous.name = "PreviousButton"
+	map_next = _button(level_map, "JÄRGMISED →", Rect2(560, 1690, 420, 90), _change_map_page.bind(1), false)
+	map_next.name = "NextButton"
+
+	shop = _layer("Shop")
+	_button(shop, "← MENÜÜ", Rect2(80, 260, 260, 84), _show_menu.bind("home"), false)
+	_label(shop, "VÄIKE LAEV. SINU STIIL.", Rect2(80, 360, 920, 70), 39, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(shop, "Välimused ja lennujäljed · kõigil sama lennuvõime", Rect2(80, 432, 920, 42), 23, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	for index in range(CourierCatalogue.SHOP_IDS.size()):
+		var id: String = CourierCatalogue.SHOP_IDS[index]
+		var data := CourierCatalogue.item(id)
+		var at := Vector2(100 + (index % 2) * 460, 510 + int(index / 2) * 395)
+		_label(shop, data.name, Rect2(at.x + 12, at.y + 167, 396, 42), 29, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+		var detail := "LAEVAVÄLIMUS" if data.kind == "ship" else "LENNUJÄLG"
+		if data.access == "season_gift":
+			detail = "HALLOWEEN · TASUTA KINGITUS"
+		elif data.access == "premium":
+			detail = "HALLOWEEN · TASULINE"
+		_label(shop, detail, Rect2(at.x + 10, at.y + 215, 400, 40), 18, data.color, true, HORIZONTAL_ALIGNMENT_CENTER)
+		var button := _button(shop, "", Rect2(at.x + 25, at.y + 277, 370, 72), _shop_action.bind(id), false)
+		button.name = "Item_" + id
+		button.add_theme_font_size_override("font_size", 25)
+		shop_buttons[id] = button
+	_label(shop, "Halloween 15.10.–07.11.2026 · Saadud esemed jäävad alles.", Rect2(80, 1705, 920, 42), 21, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	var original_ship := _button(shop, "ALGNE LAEV", Rect2(100, 1765, 420, 64), _shop_action.bind("courier"), false)
+	original_ship.name = "OriginalShipButton"
+	original_ship.add_theme_font_size_override("font_size", 23)
+	var original_trail := _button(shop, "ALGNE JÄLG", Rect2(560, 1765, 420, 64), _shop_action.bind("mint_trail"), false)
+	original_trail.name = "OriginalTrailButton"
+	original_trail.add_theme_font_size_override("font_size", 23)
+
+	preview = _layer("Preview")
+	_button(preview, "← POOD", Rect2(80, 260, 260, 84), _show_menu.bind("shop"), false)
+	_label(preview, "HALLOWEEN // ERIVÄLIMUS", Rect2(100, 470, 880, 50), 25, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "Öötiib", Rect2(100, 550, 880, 110), 70, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "Vaikne vari. Hele tähejälg.", Rect2(100, 686, 880, 60), 29, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "TASULINE HOOAJALAEV · EELVAADE", Rect2(100, 1200, 880, 70), 29, GOLD, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(preview, "Tasulised ostud pole veel saadaval.\nLaeval on sama relv, kiirus ja kilbid.", Rect2(100, 1290, 880, 120), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	_button(preview, "TAGASI POODI", Rect2(150, 1500, 780, 110), _show_menu.bind("shop"), true)
+
+	var menu_chrome := _layer("MenuChrome")
+	wallet_label = _label(menu_chrome, "", Rect2(380, 260, 610, 84), 31, GOLD, true, HORIZONTAL_ALIGNMENT_RIGHT)
+	menu_feedback = _label(menu_chrome, "", Rect2(70, 1835, 940, 60), 24, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
 
 	hud = _layer("FlightHUD")
 	coin_label = _label(hud, "0", Rect2(134, 238, 170, 60), 36, GOLD, true)
 	package_label = _label(hud, "PAKID 0/5", Rect2(360, 223, 360, 48), 27, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
 	score_label = _label(hud, "0 P", Rect2(797, 238, 200, 50), 28, MUTED, true, HORIZONTAL_ALIGNMENT_RIGHT)
-	hint_label = _label(hud, "LIBISTA JA JUHI", Rect2(90, 1670, 900, 64), 31, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
-	subhint_label = _label(hud, "Hiir või nooleklahvid töötavad ka", Rect2(70, 1740, 940, 45), 23, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	hint_label = _label(hud, "LIBISTA JA JUHI", Rect2(70, 1660, 675, 64), 27, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	subhint_label = _label(hud, "Hiir või nooleklahvid töötavad ka", Rect2(65, 1727, 680, 58), 21, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	fire_button = _button(hud, "", Rect2(770, 1663, 240, 122), _toggle_fire, false)
+	fire_button.name = "FireButton"
+	fire_button.add_theme_font_size_override("font_size", 24)
 	toast_label = _label(hud, "", Rect2(100, 1550, 880, 60), 30, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
 
 	overlay = _layer("Overlay")
@@ -315,58 +416,137 @@ func _level_data() -> Dictionary:
 	return CourierLevels.get_level(profile.selected_level if run.mode == CourierRun.Mode.READY else run.level)
 
 
+func _show_menu(screen: String) -> void:
+	if run.mode != CourierRun.Mode.READY:
+		return
+	menu_screen = screen
+	menu_feedback.text = ""
+	if screen == "map":
+		map_page = int((profile.selected_level - 1) / 10)
+	_sync_interface()
+
+
+func _change_map_page(direction: int) -> void:
+	map_page = clampi(map_page + direction, 0, 9)
+	_sync_interface()
+
+
+func _choose_map_slot(slot: int) -> void:
+	_select_level(map_page * 10 + slot + 1)
+
+
+func _shop_action(id: String) -> void:
+	var data := CourierCatalogue.item(id)
+	if data.access == "premium":
+		preview_id = id
+		_show_menu("preview")
+		return
+	var already_owned := profile.owned_items.has(id)
+	var result := profile.equip_item(id) if already_owned else profile.acquire_item(id)
+	if result == OK:
+		menu_feedback.text = "%s on nüüd kasutusel!" % data.name
+		_play_sound("coin")
+	elif result == ERR_UNAUTHORIZED:
+		menu_feedback.text = "Vaja veel %s münti. Teeni neid lennates!" % maxi(0, int(data.price) - profile.wallet)
+	elif result == ERR_UNAVAILABLE:
+		menu_feedback.text = "Hooajakingituse aeg on 15.10.–07.11.2026."
+	else:
+		menu_feedback.text = "Salvestamine ei õnnestunud. Proovi uuesti."
+	_sync_interface()
+
+
+func _toggle_fire() -> void:
+	profile.auto_fire = not profile.auto_fire
+	run.auto_fire = profile.auto_fire
+	if profile.save() != OK:
+		push_warning("Fire preference could not be saved on this device.")
+	_sync_interface()
+
+
+func _credit_coins(amount: int) -> void:
+	if profile.credit_coins(amount) != OK:
+		notification_text = "Müntide salvestamine ei õnnestunud"
+		toast_remaining = 3.0
+		push_warning("Earned coins could not be saved on this device.")
+
+
 func _sync_interface() -> void:
 	if home == null:
 		return
 	var is_home := run.mode == CourierRun.Mode.READY
 	var is_paused := run.mode == CourierRun.Mode.PAUSED
 	var is_over := run.mode == CourierRun.Mode.WON or run.mode == CourierRun.Mode.LOST
-	home.visible = is_home
+	home.visible = is_home and menu_screen == "home"
+	level_map.visible = is_home and menu_screen == "map"
+	shop.visible = is_home and menu_screen == "shop"
+	preview.visible = is_home and menu_screen == "preview"
+	get_node("MenuChrome").visible = is_home
 	hud.visible = not is_home
 	hud.modulate.a = 0.2 if is_paused or is_over else 1.0
 	overlay.visible = is_paused or is_over
 	var level_data := _level_data()
-	region_label.text = "AVATUD PIIRKONDI %s/3  ·  VALI OMA RADA" % profile.unlocked_level if is_home else "TASE %02d  ·  %s" % [run.level, level_data.name.to_upper()]
+	region_label.text = "100 TASET  ·  SINU KOSMOSESEIKLUS" if is_home else "TASE %02d  ·  %s" % [run.level, level_data.name.to_upper()]
+	wallet_label.text = "%s MÜNTI  ◈" % profile.wallet
+	home_progress.text = "Avatud %s / 100 taset\nLibista laeva · automaattuli aitab teed puhastada" % profile.unlocked_level
 	home_region_label.text = "%02d  //  %s" % [profile.selected_level, level_data.name.to_upper()]
 	if home_region_label.get_theme_color("font_color") != level_data.accent:
 		home_region_label.add_theme_color_override("font_color", level_data.accent)
 	home_description.text = level_data.description
-	for i in range(level_buttons.size()):
-		var number := i + 1
-		var unlocked := number <= profile.unlocked_level
-		var stars_text := "★".repeat(profile.stars_for_level(number))
-		level_buttons[i].disabled = not unlocked
-		level_buttons[i].set_pressed_no_signal(number == profile.selected_level)
-		level_buttons[i].text = "%02d  %s\n%s" % [number, stars_text, CourierLevels.get_level(number).name if unlocked else "LUKUS"]
-		level_buttons[i].tooltip_text = "Läbi eelmine tase, et see piirkond avada" if not unlocked else CourierLevels.get_level(number).description
+	halloween_label.text = "HALLOWEEN ON KOHAL!\nSinu tasuta Kõrvitsakuller ootab poes →" if CourierCatalogue.halloween_active() and not profile.owned_items.has("pumpkin") else "LIBISTA · TULISTA · VII PAKID KOHALE\nTeeni münte ja leia poest oma stiil."
+	if level_map.visible:
+		map_title.text = "%02d–%02d // %s" % [map_page * 10 + 1, map_page * 10 + 10, CourierLevels.get_level(map_page * 10 + 1).name]
+		map_summary.text = "VALITUD TASE %02d · %s\n%s" % [profile.selected_level, level_data.name, level_data.description]
+		map_previous.disabled = map_page == 0
+		map_next.disabled = map_page == 9
+		for i in range(level_buttons.size()):
+			var number := map_page * 10 + i + 1
+			var unlocked := number <= profile.unlocked_level
+			var rating := profile.stars_for_level(number)
+			level_buttons[i].disabled = not unlocked
+			level_buttons[i].set_pressed_no_signal(number == profile.selected_level)
+			level_buttons[i].text = "%02d   %s\n%s" % [number, "★".repeat(rating) if rating > 0 else ("VALMIS" if unlocked else "LUKUS"), "%s PAKKI" % CourierLevels.get_level(number).goal]
+	if shop.visible:
+		for id in shop_buttons:
+			var data := CourierCatalogue.item(id)
+			var owned := profile.owned_items.has(id)
+			var equipped: bool = id == profile.equipped_ship or id == profile.equipped_trail
+			var button: Button = shop_buttons[id]
+			button.text = "KASUTUSEL ✓" if equipped else ("KASUTA" if owned else "%s MÜNTI" % data.price)
+			button.disabled = equipped
+			if data.access == "season_gift" and not owned:
+				button.text = "VÕTA TASUTA" if CourierCatalogue.halloween_active() else "HOOAEG LÄBI"
+				button.disabled = not CourierCatalogue.halloween_active()
+			elif data.access == "premium":
+				button.text = "VAATA EELVAADET"
 	sound_button.text = "♪" if profile.sound_enabled else "×"
 	get_node("Header/PauseButton").visible = not is_home and not is_over and not is_paused
-	record_label.text = "SINU REKORD  ·  %s P" % profile.best_score if profile.best_score > 0 else "LÕÕGASTAV LEND  ·  MÄNGI OMAS TEMPOS"
+	record_label.text = "SINU REKORD  ·  %s P" % profile.best_score if profile.best_score > 0 else "VÄIKE LAEV  ·  SUUR SEIKLUS"
 	coin_label.text = str(run.collected_coins)
-	package_label.text = "PAKID %s/5" % run.delivered
+	package_label.text = "PAKID %s/%s" % [run.delivered, run.delivery_goal]
 	score_label.text = "%s P" % run.score
 	toast_label.text = notification_text
 	toast_label.modulate.a = minf(1.0, toast_remaining * 2.0)
+	fire_button.text = "AUTOTULI\nSEES" if run.auto_fire else "AUTOTULI\nVÄLJAS"
+	fire_button.disabled = is_paused or is_over
 	if run.destination_active:
 		var can_land := run.destination.y >= 400.0
 		hint_label.text = "LENDA MÄRGITUD RINGI" if can_land else "SIHTKOHT LÄHENEB"
-		subhint_label.text = "Hoia laeva ringis, kuni pakk on üle antud" if can_land else "Hoia kurssi. Maandumisring avaneb kohe."
+		subhint_label.text = "Hoia laeva ringis, kuni pakk on kohal" if can_land else "Maandumisring avaneb kohe."
 	else:
 		hint_label.text = "LIBISTA JA JUHI"
-		subhint_label.text = "Korja münte ja väldi asteroide"
+		subhint_label.text = "Väike: 0  ·  Keskmine: 1–3  ·  Suur: 4–7 münti"
 	if is_paused:
 		overlay_title.text = "Väike hingetõmme."
-		overlay_subtitle.text = "Sinu pakid ootavad turvaliselt.\nJätka, kui oled valmis."
-		overlay_stats.text = "%s / 5 PAKKI    ·    %s P" % [run.delivered, run.score]
+		overlay_subtitle.text = "Sinu teenitud mündid on alles.\nJätka, kui oled valmis."
+		overlay_stats.text = "%s/%s PAKKI  ·  %s P" % [run.delivered, run.delivery_goal, run.score]
 		primary_button.text = "JÄTKA LENDU  →"
 	elif is_over:
 		var won := run.mode == CourierRun.Mode.WON
-		overlay_title.text = "Kõik pakid kohal!" if won else "Uus lend ootab."
-		overlay_subtitle.text = "Galaktika tänab sind.\nOled tõeline kosmosekuller!" if won else "Iga lend teeb sind osavamaks.\nProovime veel ühe korra?"
-		overlay_stats.text = "%s P\n%s/5 pakki   ·   %s münti" % [run.score, run.delivered, run.collected_coins]
-		if won:
-			overlay_title.text = "Tase %02d läbitud!" % run.level
-			overlay_subtitle.text = "%s on nüüd avatud!\nJärgmine seiklus ootab sind." % CourierLevels.get_level(run.level + 1).name if run.level < CourierLevels.COUNT else "Kõik kolm piirkonda on läbitud!\nPüüa igal rajal kolm tähte."
+		overlay_title.text = "Tase %02d läbitud!" % run.level if won else "Uus lend ootab."
+		overlay_subtitle.text = "Järgmine tase on nüüd avatud!\nSinu tähed ja mündid on salvestatud." if won else "Teenitud mündid jäävad sulle.\nProovi uuesti või vaata poodi."
+		if won and run.level == CourierLevels.COUNT:
+			overlay_subtitle.text = "Kõik 100 taset on läbitud!\nPüüa igal rajal kolm tähte."
+		overlay_stats.text = "%s P\n%s/%s pakki  ·  +%s münti" % [run.score, run.delivered, run.delivery_goal, run.collected_coins]
 		primary_button.text = "JÄRGMINE TASE  →" if won and run.level < CourierLevels.COUNT else "LENDAME VEEL  →"
 
 
@@ -437,6 +617,7 @@ func _draw() -> void:
 			_cross(star.position, 7.0, Color(0.85, 0.95, 1.0, alpha))
 	if run.mode == CourierRun.Mode.READY:
 		_draw_home()
+		_panel(Rect2(620, 260, 395, 84), Color(0.055, 0.1, 0.18, 0.96), Color("34475e"), 26)
 	else:
 		_draw_flight()
 		# Keep moving obstacles behind a quiet header so its text stays readable.
@@ -473,16 +654,44 @@ func _draw() -> void:
 
 
 func _draw_home() -> void:
+	if menu_screen == "map":
+		_panel(Rect2(65, 440, 950, 820), Color(0.06, 0.105, 0.19, 0.9), Color("2b405c"), 40)
+		return
+	if menu_screen == "shop":
+		_draw_shop()
+		return
+	if menu_screen == "preview":
+		_panel(Rect2(90, 430, 900, 1210), Color("111e36"), Color("69558c"), 48)
+		_draw_ship(Vector2(540, 930 + sin(clock * 1.8) * 10), 0.96, 0.0, false, preview_id)
+		return
 	draw_arc(Vector2(540, 1010), 638.0, -2.8, 0.8, 120, Color(0.4, 0.7, 0.8, 0.13), 2.0, true)
 	draw_arc(Vector2(540, 1010), 700.0, -1.0, 2.4, 120, Color(0.4, 0.7, 0.8, 0.08), 2.0, true)
 	_draw_planet(Vector2(1005, 445), 185.0, 0.18, _level_data().planet_tint)
 	_draw_planet(Vector2(0, 1570), 155.0, -0.24, Color("f5b1a6"))
 	_panel(Rect2(90, 455, 900, 1080), Color(0.06, 0.105, 0.19, 0.94), Color("2b405c"), 48)
-	draw_arc(Vector2(540, 1013), 111.0, 0.0, TAU, 80, Color(0.6, 0.96, 0.82, 0.15), 2.0, true)
-	_draw_ship(Vector2(540, 998 + sin(clock * 1.8) * 7.0), 0.62, sin(clock * 1.3) * 0.035, false)
+	draw_arc(Vector2(540, 1003), 111.0, 0.0, TAU, 80, Color(0.6, 0.96, 0.82, 0.15), 2.0, true)
+	_draw_ship(Vector2(540, 988 + sin(clock * 1.8) * 7.0), 0.55, sin(clock * 1.3) * 0.035, false)
 	_cross(Vector2(330, 990), 13.0, GOLD)
 	_cross(Vector2(745, 1060), 9.0, MINT)
 	_draw_parcel(Vector2(841, 393), 0.75, clock * 0.1)
+
+
+func _draw_shop() -> void:
+	for index in range(CourierCatalogue.SHOP_IDS.size()):
+		var id: String = CourierCatalogue.SHOP_IDS[index]
+		var data := CourierCatalogue.item(id)
+		var at := Vector2(100 + (index % 2) * 460, 510 + int(index / 2) * 395)
+		var owned := profile.owned_items.has(id)
+		_panel(Rect2(at, Vector2(420, 370)), Color("111f36"), data.color if owned else Color("34475e"), 32)
+		if data.kind == "ship":
+			_draw_ship(at + Vector2(210, 84), 0.34, sin(clock * 0.7) * 0.025, false, id)
+		else:
+			for i in range(18):
+				var tint: Color = data.color
+				tint.a = 0.1 + i / 24.0
+				var point := at + Vector2(80 + i * 15, 105 + sin(i * 0.32 + clock) * 22)
+				draw_circle(point, 2 + i * 0.5, tint, true, -1.0, true)
+			_draw_star(at + Vector2(350, 105 + sin(18 * 0.32 + clock) * 22), 22, data.color)
 
 
 func _draw_flight() -> void:
@@ -493,15 +702,26 @@ func _draw_flight() -> void:
 	else:
 		draw_arc(Vector2(1005, 695), 73.0, 0.0, TAU, 50, Color(0.6, 0.8, 0.95, 0.12), 2.0, true)
 		draw_circle(Vector2(1005, 695), 43.0, Color("1b2c4c"), true, -1.0, true)
+	for bullet in run.bullets:
+		var at: Vector2 = bullet.position
+		draw_line(at + Vector2(0, 19), at - Vector2(0, 25), Color(0.5, 1.0, 0.9, 0.18), 20.0, true)
+		draw_line(at + Vector2(0, 15), at - Vector2(0, 23), MINT, 7.0, true)
+		draw_line(at + Vector2(0, 10), at - Vector2(0, 21), CREAM, 2.0, true)
 	for coin in run.coins:
 		_draw_coin(coin.position)
 	for rock in run.asteroids:
 		draw_set_transform(rock.position, rock.angle, Vector2.ONE * rock.radius / 150.0)
 		draw_texture_rect(ASTEROID, Rect2(-150, -150, 300, 300), false, Color("e0c7e8") if rock.variant == 1 else Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
+		var hp := int(rock.get("hp", 3))
+		var max_hp := int(rock.get("max_hp", 3))
+		if hp < max_hp:
+			var at: Vector2 = rock.position - Vector2(0, rock.radius + 18)
+			draw_line(at - Vector2(40, 0), at + Vector2(40, 0), Color("2b405c"), 6.0, true)
+			draw_line(at - Vector2(40, 0), at - Vector2(40, 0) + Vector2(80.0 * hp / max_hp, 0), GOLD, 6.0, true)
 	# Keep the ship visible while protected; the shield arc conveys invulnerability.
 	for i in range(1, trail.size()):
-		var tint: Color = _level_data().accent
+		var tint: Color = CourierCatalogue.item(profile.equipped_trail).color
 		tint.a = float(i) / trail.size() * 0.17
 		draw_line(trail[i - 1], trail[i], tint, 3.0 + float(i) / trail.size() * 9.0, true)
 	var shake := Vector2(sin(clock * 71.0), cos(clock * 59.0)) * hit_flash * 10.0
@@ -543,18 +763,18 @@ func _draw_destination() -> void:
 func _draw_hud() -> void:
 	_panel(Rect2(60, 211, 960, 112), Color(0.055, 0.1, 0.18, 0.94), Color("2b405c"), 30)
 	draw_line(Vector2(90, 332), Vector2(990, 332), Color("263c56"), 5.0, true)
-	var progress := (float(run.delivered) + run.dock_progress) / CourierRun.DELIVERY_GOAL
+	var progress := (float(run.delivered) + run.dock_progress) / run.delivery_goal
 	if progress > 0.0:
 		draw_line(Vector2(90, 332), Vector2(90 + 900 * progress, 332), _level_data().accent, 5.0, true)
 	draw_line(Vector2(304, 235), Vector2(304, 298), Color("2c405b"), 2.0, true)
 	draw_line(Vector2(774, 235), Vector2(774, 298), Color("2c405b"), 2.0, true)
 	_draw_coin(Vector2(102, 265), 0.68)
-	for i in range(CourierRun.DELIVERY_GOAL):
+	for i in range(run.delivery_goal):
 		var color := MINT if i < run.delivered else Color("334762")
-		var at := Vector2(436 + i * 52, 292)
+		var at := Vector2(540 - (run.delivery_goal - 1) * 23 + i * 46, 292)
 		_panel(Rect2(at - Vector2(14, 12), Vector2(28, 24)), color, color, 5)
 		draw_line(at + Vector2(0, -12), at + Vector2(0, 12), Color("152e3d"), 4.0, true)
-	_panel(Rect2(170, 1645, 740, 157), Color(0.05, 0.09, 0.17, 0.9), Color("283d59"), 34)
+	_panel(Rect2(55, 1645, 970, 157), Color(0.05, 0.09, 0.17, 0.9), Color("283d59"), 34)
 	for i in range(CourierRun.MAX_SHIELDS):
 		var at := Vector2(450 + i * 90, 1854)
 		var color := MINT if i < run.shields else Color("34455f")
@@ -565,7 +785,7 @@ func _draw_hud() -> void:
 			draw_colored_polygon(inside, Color(0.6, 0.96, 0.83, 0.24))
 
 
-func _draw_ship(at: Vector2, ship_scale: float, angle: float, shielded: bool) -> void:
+func _draw_ship(at: Vector2, ship_scale: float, angle: float, shielded: bool, skin: String = "") -> void:
 	draw_set_transform(at, angle, Vector2.ONE * ship_scale)
 	var flame := 1.0 + sin(clock * 38.0) * 0.12
 	var outer := PackedVector2Array([Vector2(-18, 112), Vector2(-14, 165), Vector2(0, 222 * flame), Vector2(14, 165), Vector2(18, 112)])
@@ -574,7 +794,7 @@ func _draw_ship(at: Vector2, ship_scale: float, angle: float, shielded: bool) ->
 	draw_colored_polygon(inner, Color("fff1b4"))
 	for x in [-78.0, 78.0]:
 		draw_line(Vector2(x, 100), Vector2(x, 128.0 + 20.0 * flame), Color("9debe3"), 8.0, true)
-	draw_texture_rect(SHIP, Rect2(-120, -160, 240, 320), false)
+	draw_texture_rect(SHIPS.get(profile.equipped_ship if skin.is_empty() else skin, SHIP), Rect2(-120, -160, 240, 320), false)
 	if shielded:
 		draw_arc(Vector2.ZERO, 153.0, -2.8, 0.15, 60, Color(0.6, 0.96, 0.83, 0.32), 3.0, true)
 	draw_set_transform(Vector2.ZERO)
@@ -647,12 +867,13 @@ func _play_sound(sound_name: String) -> void:
 
 func _make_sounds() -> void:
 	# Short synthesized chimes: no downloads, audio permissions or licensed clips.
-	for sound_name in ["coin", "delivery", "hit", "start"]:
+	for sound_name in ["coin", "delivery", "hit", "start", "rock"]:
 		var notes: Array
 		match sound_name:
 			"coin": notes = [880.0, 1174.66]
 			"delivery": notes = [523.25, 659.25, 783.99, 1046.5]
 			"hit": notes = [196.0, 146.83]
+			"rock": notes = [164.81, 110.0]
 			_: notes = [392.0, 523.25, 659.25]
 		var samples_per_note := 3000
 		var data := PackedByteArray()

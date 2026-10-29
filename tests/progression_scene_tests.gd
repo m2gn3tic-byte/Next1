@@ -32,13 +32,13 @@ func _run_tests() -> void:
 	temporary_profile.sound_enabled = false
 	temporary_profile.best_score = 2600
 	game.profile = temporary_profile
-	game._sync_interface()
+	game._show_menu("map")
 	var has_buttons := true
 	for number in range(1, 4):
-		var button = game.get_node_or_null("Home/Level%sButton" % number)
+		var button = game.get_node_or_null("LevelMap/Level%sButton" % number)
 		if button == null:
 			has_buttons = false
-	check(has_buttons, "home exposes all three level choices")
+	check(has_buttons, "map exposes its first page of level choices")
 	if has_buttons:
 		_test_selection_and_first_victory(game, path)
 		_test_failure_and_reselection(game, path)
@@ -55,16 +55,16 @@ func _run_tests() -> void:
 
 
 func _test_selection_and_first_victory(game, path: String) -> void:
-	check(not game.get_node("Home/Level1Button").disabled, "first level is available on a fresh profile")
-	check(game.get_node("Home/Level2Button").disabled and game.get_node("Home/Level3Button").disabled,
+	check(not game.get_node("LevelMap/Level1Button").disabled, "first level is available on a fresh profile")
+	check(game.get_node("LevelMap/Level2Button").disabled and game.get_node("LevelMap/Level3Button").disabled,
 		"later levels are disabled before earlier deliveries are completed")
 	game.get_node("Home/StartButton").pressed.emit()
 	game._process(1.0 / 60.0)
 	check(game.run.mode == CourierRun.Mode.FLYING and game.run.level == 1,
 		"start button launches the selected first level")
 	_finish_level(game, 1)
-	check(game.run.mode == CourierRun.Mode.WON and game.run.delivered == 5 and game.overlay.visible,
-		"fifth actual delivery opens the level-complete screen")
+	check(game.run.mode == CourierRun.Mode.WON and game.run.delivered == game.run.delivery_goal and game.overlay.visible,
+		"final actual delivery opens the level-complete screen")
 	check(game.profile.unlocked_level == 2 and game.profile.stars_for_level(1) == 1,
 		"victory unlocks the next level and records earned stars")
 	var reloaded = CourierProfile.new(path)
@@ -98,14 +98,15 @@ func _test_failure_and_reselection(game, path: String) -> void:
 		"retry restarts the failed level instead of skipping or returning to level one")
 	game._go_home()
 	game._process(1.0 / 60.0)
-	check(game.home.visible and not game.get_node("Home/Level2Button").disabled and game.get_node("Home/Level3Button").disabled,
+	game._show_menu("map")
+	check(game.level_map.visible and not game.get_node("LevelMap/Level2Button").disabled and game.get_node("LevelMap/Level3Button").disabled,
 		"returning home refreshes which levels have been unlocked")
-	game.get_node("Home/Level1Button").pressed.emit()
+	game.get_node("LevelMap/Level1Button").pressed.emit()
 	check(game.profile.selected_level == 1, "an earlier unlocked level can be selected for replay")
 	var selected = CourierProfile.new(path)
 	check(selected.selected_level == 1 and selected.stars_for_level(1) == 1,
 		"choosing a replay level persists without losing its stars")
-	game.get_node("Home/Level2Button").pressed.emit()
+	game.get_node("LevelMap/Level2Button").pressed.emit()
 	game.get_node("Home/StartButton").pressed.emit()
 	game._process(1.0 / 60.0)
 	check(game.run.mode == CourierRun.Mode.FLYING and game.run.level == 2,
@@ -121,29 +122,34 @@ func _test_campaign_finish(game, path: String) -> void:
 	check(game.run.mode == CourierRun.Mode.FLYING and game.run.level == 3,
 		"next-level action reaches the final region")
 	_finish_level(game, 3)
-	check(game.run.mode == CourierRun.Mode.WON and game.profile.unlocked_level == 3 and game.profile.stars_for_level(3) == 3,
-		"final victory records three stars without creating a nonexistent fourth level")
+	check(game.run.mode == CourierRun.Mode.WON and game.profile.unlocked_level == 4 and game.profile.stars_for_level(3) == 3,
+		"victory in the old final region now unlocks level four")
+	for number in range(4, CourierLevels.COUNT):
+		game.profile.complete_level(number, 2)
+	game.profile.select_level(CourierLevels.COUNT)
+	game._start_run()
+	_finish_level(game, 3)
+	check(game.run.mode == CourierRun.Mode.WON and game.profile.unlocked_level == 100,
+		"the hundredth level ends the finite campaign")
 	game.get_node("Overlay/PrimaryButton").pressed.emit()
 	game._process(1.0 / 60.0)
-	check(game.run.mode == CourierRun.Mode.FLYING and game.run.level == 3 and game.profile.selected_level == 3,
-		"final victory primary action safely replays the final level")
+	check(game.run.mode == CourierRun.Mode.FLYING and game.run.level == 100 and game.profile.selected_level == 100,
+		"final victory safely replays level 100 without creating level 101")
 	game._go_home()
-	game._process(1.0 / 60.0)
-	var all_available := true
-	for number in range(1, 4):
-		all_available = all_available and not game.get_node("Home/Level%sButton" % number).disabled
-	check(all_available, "completed campaign keeps all earlier levels available for replay")
+	game._show_menu("map")
+	check(game.map_page == 9 and not game.level_buttons[9].disabled and game.map_next.disabled,
+		"the map opens at the selected final page with no further page")
 	var reloaded = CourierProfile.new(path)
-	check(reloaded.unlocked_level == 3 and reloaded.selected_level == 3
+	check(reloaded.unlocked_level == 100 and reloaded.selected_level == 100
 		and reloaded.stars_for_level(1) == 1 and reloaded.stars_for_level(2) == 2 and reloaded.stars_for_level(3) == 3,
-		"campaign progress and separate star ratings persist across reloads")
+		"campaign expansion preserves distinct old ratings alongside new progress")
 	check(reloaded.best_score >= 2600 and not reloaded.sound_enabled,
 		"progression preserves an existing higher score and sound preference")
 
 
 func _finish_level(game, remaining_shields: int) -> void:
 	# Inject only docking encounters; production hold/progress/reward/terminal paths run.
-	for delivery in range(5):
+	for delivery in range(game.run.delivery_goal):
 		game.run.destination_active = true
 		game.run.destination = Vector2(540.0, 540.0)
 		game.run.dock_progress = 0.0
@@ -153,14 +159,16 @@ func _finish_level(game, remaining_shields: int) -> void:
 		game.run.coin_timer = 999.0
 		game.run.ship = game.run.dock_position()
 		game.run.target = game.run.ship
-		if delivery == 4:
+		if delivery == game.run.delivery_goal - 1:
 			game.run.shields = remaining_shields
 		for frame in range(33):
 			game._process(1.0 / 60.0)
 
 
 func _test_keyboard_next_level(game) -> void:
-	game.get_node("Home/Level1Button").pressed.emit()
+	game._show_menu("map")
+	game._change_map_page(-9)
+	game.get_node("LevelMap/Level1Button").pressed.emit()
 	game.get_node("Home/StartButton").pressed.emit()
 	game._process(1.0 / 60.0)
 	_finish_level(game, 3)

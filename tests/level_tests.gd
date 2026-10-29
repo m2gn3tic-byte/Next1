@@ -41,14 +41,14 @@ func _run_tests() -> void:
 
 
 func _test_catalogue_and_motion() -> void:
-	check(LEVELS.COUNT == 3 and LEVELS.get_level(2).name == "Udumets", "three named regions are available")
+	check(LEVELS.COUNT == 100 and LEVELS.get_level(11).name == "Udumets", "100 finite levels span ten named regions")
 	var definition := LEVELS.get_level(1)
 	definition["speed"] = 9999.0
 	check(LEVELS.get_level(1).speed == 260.0, "catalogue reads cannot mutate shared balance settings")
 	var first := RUN.new()
 	var later := RUN.new()
 	first.begin(22, 1)
-	later.begin(22, 3)
+	later.begin(22, 21)
 	for i in range(61):
 		first.step(1.0 / 60.0)
 		later.step(1.0 / 60.0)
@@ -62,7 +62,7 @@ func _test_catalogue_and_motion() -> void:
 	later.asteroids[0].drift = -38.0
 	later.step(1.0 / 60.0)
 	check(later.asteroids[0].position.x >= later.asteroids[0].radius + 15.0 and later.asteroids[0].drift > 0.0, "drifting asteroids bounce inside the playfield")
-	later.begin(22, 99)
+	later.begin(22, 999)
 	check(later.level == LEVELS.COUNT, "out-of-range run levels are clamped")
 	later.begin(22)
 	check(later.level == 1, "legacy begin(seed) starts the first region")
@@ -84,12 +84,12 @@ func _test_progression() -> void:
 	check(profile.unlocked_level == 3 and profile.stars_for_level(1) == 3, "better replays improve stars while progression reaches the final region")
 	profile.select_level(3)
 	profile.complete_level(3, 3)
-	check(profile.unlocked_level == LEVELS.COUNT and profile.select_level(4) == ERR_INVALID_PARAMETER, "finishing the campaign does not create a nonexistent next region")
+	check(profile.unlocked_level == 4 and profile.select_level(101) == ERR_INVALID_PARAMETER, "completing the old final region now unlocks level four within the finite campaign")
 	profile.record(1800, 5)
 	profile.sound_enabled = false
 	profile.save()
 	var restored := PROFILE.new(path)
-	check(restored.unlocked_level == 3 and restored.selected_level == 3 and restored.stars_for_level(3) == 3, "unlocks, selected region and stars survive reload")
+	check(restored.unlocked_level == 4 and restored.selected_level == 3 and restored.stars_for_level(3) == 3, "unlocks, selected region and stars survive reload")
 	check(restored.best_score == 1800 and restored.best_deliveries == 5 and not restored.sound_enabled, "progress saving preserves existing records and sound settings")
 
 
@@ -120,7 +120,7 @@ func _test_migration_and_bad_saves() -> void:
 
 func _test_shield_repairs() -> void:
 	var state := RUN.new()
-	state.begin(4)
+	state.begin(4, 7)
 	state.delivered = 1
 	state.shields = 1
 	state.destination_active = true
@@ -152,11 +152,25 @@ func _test_full_missions() -> void:
 			if state.destination_active and state.destination.y >= 400.0:
 				state.steer(state.dock_position())
 			else:
-				var desired := Vector2(state.ship.x, 1380)
-				for rock in state.asteroids:
-					if rock.position.y > 850.0 and rock.position.y < 1510.0 and absf(rock.position.x - desired.x) < rock.radius + 100.0:
-						desired.x = 170.0 if rock.position.x > 540.0 else 910.0
-				state.steer(desired)
+				state.steer(_safe_course(state))
 			state.step(1.0 / 60.0)
-		check(state.mode == RUN.Mode.WON and state.delivered == 5, "region %s full five-parcel mission is playable with generated hazards" % number)
-		check(state.elapsed > 25.0 and state.elapsed < 140.0 and state.score >= 1150, "region %s completes within a bounded duration with real rewards" % number)
+		check(state.mode == RUN.Mode.WON and state.delivered == state.delivery_goal, "level %s variable-length mission is playable with generated hazards" % number)
+		check(state.elapsed > 15.0 and state.elapsed < 140.0 and state.score >= 300 + state.delivery_goal * 150, "region %s completes within a bounded duration with real rewards" % number)
+
+
+func _safe_course(state: CourierRun) -> Vector2:
+	# Predict approaching rocks with their real drift. No hazard removal or shield cheats.
+	var best_x := state.ship.x
+	var best_safety := -INF
+	for candidate in [150.0, 280.0, 410.0, 540.0, 670.0, 800.0, 930.0]:
+		var safety: float = 360.0 - absf(candidate - state.ship.x) * 0.15
+		for rock in state.asteroids:
+			if rock.position.y > 1500.0 or rock.position.y < 700.0:
+				continue
+			var arrival := maxf(0.0, (1380.0 - rock.position.y) / rock.speed)
+			var projected: float = clampf(rock.position.x + rock.drift * arrival, rock.radius + 15, 1065 - rock.radius)
+			safety = minf(safety, absf(candidate - projected) - rock.radius - 65.0)
+		if safety > best_safety:
+			best_safety = safety
+			best_x = candidate
+	return Vector2(best_x, 1380)

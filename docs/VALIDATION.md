@@ -28,3 +28,18 @@ Kohalik staatilise veebiväljalaske kontroll ja brauseritest ei tõesta iseenese
 Visuaalse uuenduse hulka kuuluvad piirkonna värvid, taseme algusteade, tarneringi edenemisriba, maandumislaine, punktihüpikud, kilbi taastamise teade, laeva valgusjälg ja tulemuse tähed. Efektid peatuvad koos mängupausiga.
 
 Eraldatud brauseriprofiilis kinnitati ka IndexedDB-sse salvestatud edenemise taastamine ja säilimine teise veebiväljalaske laadimisel: valitud kolmas piirkond, avatud tasemed, eraldi tähehinded ja helieelistus jäid alles. Testis kasutati salvestuse andmeid ettevalmistavat prooviprofiili; avaliku mängu profiile ei muudetud.
+
+## Tulistamine, 100 taset ja pood — 29.10.2026
+
+- 33 põhireeglite ja stseeni kontrolli, 225 taseme/profiili kontrolli, 25 edenemise stseenikontrolli, 48 lahingu/majanduse kontrolli ning 3 veebiversiooni kontrolli läbisid: **334 läbitud, 0 ebaõnnestunud**.
+- Kõik 100 missiooni läbisid külvatud proovipiloodiga päriselt tekkivate asteroidide, tavapärase juhtimise, tulistamise ja 2–7 tarnega. Piloot ennustab triivi ja väldib takistusi; ta ei eemalda neid ega muuda kilpe. See kinnitab missioonide lõpetatavust selle prooviseemnega; pärismängijate raskusastme hinnang vajab mänguteste.
+- 120 deterministlikku tulistamiskatset kontrollisid tegelikke mürsutabamusi, kolme suuruse tabamusarve ning 0 / 1–3 / 4–7 mündi auhindu. Keskmise asteroidi kõik kolm võimalikku auhinda esinesid.
+- Kontrolliti rahakoti kohest salvestamist, kaotatud/katkestatud lennu raha säilimist, puudujääki, topeltostu tõkestamist, välimuse valikut, vigaseid salvestusi ja ebaõnnestuva salvestuse tehingu tagasipööramist.
+- Halloweeni piirkuupäevad, tasuta kingituse ühekordne võtmine ja jätkuv omamine läbisid. Premium-eset ei saa brauseris müntidega osta ega eelvaate kaudu omandada.
+- `tests/browser_smoke.py` läbis päris eksporditud WebAssembly-mängu puutejuhtimise, pausi/jätkamise, 1080×1920 renderdamise, eri ekraanisuhted ja lauaarvuti klaviatuuri kontrollid.
+- `tests/browser_economy.py` läbis päris menüüde puutenupud, müntidega ostu ja tasuta Halloweeni kingituse, algsete välimuste taastamise, premium-eelvaate, lukustatud tasemekaardi lõpplehe ning nähtavate mürskude sisse/välja lülitamise.
+- Brauseri IndexedDB-st kinnitati vana kolme piirkonna salvestuse üleminek (tähed, valik ja heli säilisid, kolmanda läbimine avas neljanda), rahakoti ja kosmeetika püsimine pärast mootori/lehe uuesti käivitamist. Puudusid JavaScripti, WebGL-i ja Godoti käitusvead.
+
+Brauseri ostukatsed kasutasid eraldatud prooviprofiili ja ettevalmistatud 250 testmünti. Ühegi avaliku mängija raha ega salvestust ei muudetud ning mängus ei ole proovimüntide väljastamise liidest. Ekraanipildid `08`–`13` on selle prooviprofiili omad. Halloweeni puutevõtmist kontrollitakse brauseris ainult tegeliku hooaja ajal; kuupäevade reegleid kontrollivad aastaringselt GDScripti testid.
+
+Päris rahaga maksed, Androidi APK/AAB ja pärisseadme test ei kuulu sellesse väljalaskesse. Hooaja seadmeaja kontroll on prototüübilahendus. Täpne arendusplaan on `docs/ROADMAP.md`.

@@ -91,6 +91,7 @@ def main():
         page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
         page.goto(URL)
         page.wait_for_selector("#loading", state="detached", timeout=90000)
+        page.wait_for_timeout(600)
         canvas = page.locator("canvas")
         box = canvas.bounding_box()
         assert abs(box["width"] / box["height"] - 9 / 16) < 0.002, box

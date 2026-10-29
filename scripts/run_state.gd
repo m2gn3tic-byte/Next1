@@ -9,7 +9,10 @@ enum Mode { READY, FLYING, PAUSED, WON, LOST }
 const WORLD := Vector2(1080.0, 1920.0)
 const SHIP_RADIUS := 36.0
 const SHIP_SPEED := 1180.0
-const DELIVERY_GOAL := 5
+const BULLET_SPEED := 1450.0
+const FIRE_INTERVAL := 0.24
+const ROCK_RADII := [48.0, 85.0, 126.0]
+const ROCK_HP := [1, 3, 6]
 const DOCK_RADIUS := 110.0
 const DOCK_TIME := 0.5
 const MAX_SHIELDS := 3
@@ -17,6 +20,11 @@ const LEVELS := preload("res://scripts/levels.gd")
 
 var mode: Mode = Mode.READY
 var level := 1
+var delivery_goal := 2
+var auto_fire := true
+var fire_timer := 0.0
+var bullets: Array[Dictionary] = []
+var destroyed := 0
 var ship := Vector2(540.0, 1380.0)
 var target := ship
 var asteroids: Array[Dictionary] = []
@@ -43,6 +51,11 @@ func begin(seed_value: int = -1, level_number: int = 1) -> void:
 		rng.seed = seed_value
 	mode = Mode.FLYING
 	level = clampi(level_number, 1, LEVELS.COUNT)
+	delivery_goal = int(LEVELS.get_level(level).goal)
+	auto_fire = true
+	fire_timer = 0.0
+	bullets.clear()
+	destroyed = 0
 	ship = Vector2(540.0, 1380.0)
 	target = ship
 	asteroids.clear()
@@ -91,7 +104,7 @@ func step(delta: float) -> void:
 	invincible_for = maxf(0.0, invincible_for - dt)
 	ship = ship.move_toward(target, SHIP_SPEED * dt)
 	var settings := LEVELS.get_level(level)
-	var speed: float = settings.speed + delivered * 28.0
+	var speed: float = minf(480.0, float(settings.speed) + delivered * 12.0)
 
 	if not destination_active and elapsed >= next_destination:
 		destination_active = true
@@ -118,11 +131,13 @@ func step(delta: float) -> void:
 		asteroid_timer -= dt
 		if asteroid_timer <= 0.0:
 			_spawn_asteroid(speed)
-			asteroid_timer = maxf(0.64, float(settings.spawn_interval) - delivered * 0.08)
+			asteroid_timer = maxf(0.72, float(settings.spawn_interval) - delivered * 0.020)
 		coin_timer -= dt
 		if coin_timer <= 0.0:
 			_spawn_coins(speed)
 			coin_timer = 2.1
+
+	_step_bullets(dt)
 
 	for i in range(coins.size() - 1, -1, -1):
 		var coin: Dictionary = coins[i]
@@ -161,7 +176,7 @@ func step(delta: float) -> void:
 
 func _deliver() -> void:
 	delivered += 1
-	collected_coins += 5
+	collected_coins += 2
 	score += 150
 	destination_active = false
 	dock_progress = 0.0
@@ -172,23 +187,25 @@ func _deliver() -> void:
 	asteroids = asteroids.filter(func(rock: Dictionary) -> bool:
 		return rock.position.distance_to(ship) > rock.radius + 260.0)
 	event.emit("delivery", dock_position(), delivered)
-	if delivered % 2 == 0 and shields < MAX_SHIELDS:
+	if delivered % 2 == 0 and delivered < delivery_goal and shields < MAX_SHIELDS:
 		shields += 1
 		event.emit("repair", ship, shields)
-	if delivered == DELIVERY_GOAL:
+	if delivered >= delivery_goal:
 		score += 300 + shields * 100
 		mode = Mode.WON
 		event.emit("won", ship, score)
 
 
 func _spawn_asteroid(speed: float) -> void:
-	var radius := rng.randf_range(68.0, 126.0)
+	var size_class := rng.randi_range(0, 2)
+	var radius: float = ROCK_RADII[size_class]
 	var position := Vector2(rng.randf_range(radius + 15.0, WORLD.x - radius - 15.0), -160.0)
 	for rock in asteroids:
 		if rock.position.distance_to(position) < rock.radius + radius + 90.0:
 			return
 	asteroids.append({
 		"position": position, "radius": radius, "speed": speed,
+		"size_class": size_class, "hp": ROCK_HP[size_class], "max_hp": ROCK_HP[size_class],
 		"angle": rng.randf_range(-PI, PI), "spin": rng.randf_range(-0.32, 0.32),
 		"variant": rng.randi_range(0, 1),
 		"drift": float(LEVELS.get_level(level).drift) * (-1.0 if rng.randf() < 0.5 else 1.0),
@@ -197,7 +214,7 @@ func _spawn_asteroid(speed: float) -> void:
 
 func _spawn_coins(speed: float) -> void:
 	var x := rng.randf_range(190.0, 890.0)
-	for i in range(3):
+	for i in range(1):
 		var position := Vector2(x + sin(float(i)) * 45.0, -160.0 - i * 100.0)
 		var clear := true
 		for rock in asteroids:
@@ -206,3 +223,52 @@ func _spawn_coins(speed: float) -> void:
 				break
 		if clear:
 			coins.append({"position": position, "speed": speed})
+
+
+func _step_bullets(dt: float) -> void:
+	fire_timer = maxf(0.0, fire_timer - dt)
+	if auto_fire and fire_timer <= 0.0:
+		bullets.append({"position": ship - Vector2(0, 92)})
+		fire_timer = FIRE_INTERVAL
+	# A swept segment catches small rocks even when a frame stalls.
+	for index in range(bullets.size() - 1, -1, -1):
+		var bullet := bullets[index]
+		var previous: Vector2 = bullet.position
+		bullet.position.y -= BULLET_SPEED * dt
+		var closest_index := -1
+		var closest_distance := INF
+		for rock_index in range(asteroids.size()):
+			var rock := asteroids[rock_index]
+			if rock.position.y < 340.0:
+				continue
+			var near := Geometry2D.get_closest_point_to_segment(rock.position, previous, bullet.position)
+			if near.distance_to(rock.position) < rock.radius * 0.86 + 8.0:
+				var distance := previous.distance_to(rock.position)
+				if distance < closest_distance:
+					closest_distance = distance
+					closest_index = rock_index
+		if closest_index >= 0:
+			_hit_asteroid(closest_index)
+			bullets.remove_at(index)
+		elif bullet.position.y < 325.0:
+			bullets.remove_at(index)
+
+
+func _hit_asteroid(index: int) -> void:
+	var rock := asteroids[index]
+	rock["hp"] = int(rock.get("hp", 3)) - 1
+	if rock.hp > 0:
+		event.emit("asteroid_hit", rock.position, rock.hp)
+		return
+	var size_class := int(rock.get("size_class", 1))
+	var reward := 0
+	if size_class == 1:
+		reward = rng.randi_range(1, 3)
+	elif size_class == 2:
+		reward = rng.randi_range(4, 7)
+	var at: Vector2 = rock.position
+	asteroids.remove_at(index)
+	destroyed += 1
+	collected_coins += reward
+	score += [10, 30, 60][clampi(size_class, 0, 2)]
+	event.emit("asteroid_destroyed", at, reward)
