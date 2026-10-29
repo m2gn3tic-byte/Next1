@@ -1,8 +1,22 @@
 # Kosmosekuller 🚀
 
-Ühe sõrmega juhitav 2D-kosmoseseiklus Androidi jaoks. Esimene etapp on **mängitav Godot 4.6.3 prototüüp**, millel on ka brauseris käivitatav versioon.
+Ühe sõrmega juhitav 2D-kosmoseseiklus Androidi jaoks. **Mängitav Godot 4.6.3 prototüüp kolme avatava piirkonnaga**, millel on ka brauseris käivitatav versioon.
 
 Lenda läbi asteroidide, kogu münte ja vii viis pakki planeetidele. Maandumiseks hoia laeva pool sekundit helendavas ringis. Kolm kilpi annavad eksimisruumi; iga kohaletoimetamine annab uue turvalise stardi.
+
+Mängi veebis: **https://m2gn3tic-byte.github.io/Next1/**.
+
+## Tasemed ja edenemine
+
+| Tase | Piirkond | Lennu iseloom |
+| --- | --- | --- |
+| 1 | Mündiorbiit | Rahulik algus, otse liikuvad asteroidid |
+| 2 | Udumets | Lillakas piirkond, kiirem lend ja külgsuunas triivivad asteroidid |
+| 3 | Kristallivöö | Kuldne piirkond, tihedam liiklus ja tugevam triiv |
+
+Iga piirkonna viis tarnet avavad järgmise taseme. Tulemusele antakse 1–3 tähte allesjäänud kilpide järgi; varasemat taset saab parema tulemuse nimel uuesti mängida. Teine ja neljas tarne taastavad ühe kaotatud kilbi. Viimase taseme lõpetamisel saab sama rada korrata.
+
+Avatud tasemed, valik ja parimad tähed salvestatakse brauserisse koos olemasoleva rekordi ja helieelistusega. Varem esimese viie pakiga lennu lõpetanud mängijale avaneb uuendamisel teine piirkond. Mängijale näidatakse ka piirkonna algust, tarne edenemist, punktihüpikuid, maandumislaineid ja laeva valgusjälge.
 
 ## Käivitamine
 
@@ -44,6 +58,9 @@ Põhireeglite, tervikliku missiooni, salvestamise ja tegeliku stseeni juhtnuppud
 ```bash
 ./tools/godot.sh --headless --editor --import --quit
 ./tools/godot.sh --headless --script res://tests/run_tests.gd
+./tools/godot.sh --headless --script res://tests/level_tests.gd
+./tools/godot.sh --headless --script res://tests/progression_scene_tests.gd
+python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Brauseritest vajab Python Playwrighti, Pillow't ja Chromiumi ning käivitatud kohalikku serverit:
@@ -61,13 +78,14 @@ Brauseritest käivitab päriselt eksporditud WebAssembly-mängu, kontrollib sõr
 | `scripts/run_state.gd` | Joonistamisest sõltumatud mängureeglid ja külvatava juhuarvugeneraatoriga maailm |
 | `scripts/main.gd` | Puute- ja klaviatuurijuhtimine, kasutajaliides, joonistamine ja sünteesitud helid |
 | `scripts/profile.gd` | Kohalikud rekordid ja sätted |
+| `scripts/levels.gd` | Kolme piirkonna värvid ja raskusastmed |
 | `assets/` | Selle mängu jaoks loodud SVG-graafika ja DejaVu fondid koos litsentsiga |
 | `tests/` | Mängureeglite, stseeni ja brauseri kontrollid |
 | `tools/` | Godoti käivitus, kontrollsummadega mallipaigaldus, veebiehitus ja kohalik server |
 
 ## Esimese etapi piirid ja järgmine samm
 
-Valmis on üks terviklik mänguring: avaleht → lend → viis kohaletoimetamist või kilpide kaotus → tulemus → uus katse. Graafika on kontseptpildist inspireeritud esialgne 2D-vektorkujundus.
+Valmis on kolme piirkonnaga mänguring: tasemevalik → lend → viis kohaletoimetamist või kilpide kaotus → tulemus → järgmine tase või uus katse. Graafika on kontseptpildist inspireeritud esialgne 2D-vektorkujundus.
 
 Järgmine etapp on **Androidi prooviversioon ja testimine päris telefonil**: Android SDK / JDK 17 seadistus, Androidi ekspordipreset, APK ning juhtimise ja jõudluse kontroll. Praegune veebitest emuleerib telefoni; päris Android-seadmel pole seda versiooni veel kontrollitud. Play poe AAB, avaldamisallkiri, ostud ja reklaamid lisanduvad hiljem. Reklaami- ega makse-SDK-sid selles prototüübis ei ole.
 

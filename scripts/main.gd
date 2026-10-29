@@ -16,6 +16,10 @@ var run := CourierRun.new()
 var profile: CourierProfile
 var stars: Array[Dictionary] = []
 var particles: Array[Dictionary] = []
+var rings: Array[Dictionary] = []
+var floaters: Array[Dictionary] = []
+var trail: Array[Vector2] = []
+var intro_remaining := 0.0
 var visual_rng := RandomNumberGenerator.new()
 var clock := 0.0
 var drag_id := -1
@@ -45,6 +49,10 @@ var overlay_subtitle: Label
 var overlay_stats: Label
 var primary_button: Button
 var secondary_button: Button
+var level_buttons: Array[Button] = []
+var region_label: Label
+var home_region_label: Label
+var home_description: Label
 
 
 func _ready() -> void:
@@ -82,11 +90,20 @@ func _process(delta: float) -> void:
 		var horizontal := run.target.x - run.ship.x
 		bank_angle = lerpf(bank_angle, clampf(horizontal / 650.0, -0.22, 0.22), 9.0 * dt)
 		run.step(dt)
+		trail.append(run.ship + Vector2(0, 86))
+		if trail.size() > 22:
+			trail.pop_front()
 		for star in stars:
 			star.position.y = fposmod(star.position.y + dt * 72.0 * star.depth, 1920.0)
 	if run.mode != CourierRun.Mode.PAUSED:
 		hit_flash = maxf(0.0, hit_flash - dt * 2.0)
 		toast_remaining = maxf(0.0, toast_remaining - dt)
+		intro_remaining = maxf(0.0, intro_remaining - dt)
+		for collection in [rings, floaters]:
+			for i in range(collection.size() - 1, -1, -1):
+				collection[i].life -= dt
+				if collection[i].life <= 0.0:
+					collection.remove_at(i)
 		for i in range(particles.size() - 1, -1, -1):
 			particles[i].life -= dt
 			particles[i].position += particles[i].velocity * dt
@@ -98,6 +115,8 @@ func _process(delta: float) -> void:
 		if run.mode == CourierRun.Mode.WON or run.mode == CourierRun.Mode.LOST:
 			if profile.record(run.score, run.delivered) != OK:
 				push_warning("Record could not be saved on this device.")
+			if run.mode == CourierRun.Mode.WON and profile.complete_level(run.level, run.shields) != OK:
+				push_warning("Level progress could not be saved on this device.")
 		last_mode = run.mode
 	_sync_interface()
 	queue_redraw()
@@ -109,8 +128,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_pause()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ENTER or event.keycode == KEY_SPACE:
-			if run.mode == CourierRun.Mode.READY or run.mode == CourierRun.Mode.WON or run.mode == CourierRun.Mode.LOST:
+			if run.mode == CourierRun.Mode.READY:
 				_start_run()
+			elif run.mode == CourierRun.Mode.WON or run.mode == CourierRun.Mode.LOST:
+				_primary_action()
 			elif run.mode == CourierRun.Mode.PAUSED:
 				run.resume()
 	if run.mode != CourierRun.Mode.FLYING:
@@ -148,9 +169,14 @@ func _pause_for_background() -> void:
 
 
 func _start_run() -> void:
-	run.begin()
+	run.begin(-1, clampi(profile.selected_level, 1, profile.unlocked_level))
+	last_mode = run.mode
 	drag_id = -1
 	particles.clear()
+	rings.clear()
+	floaters.clear()
+	trail.clear()
+	intro_remaining = 2.4
 	toast_remaining = 0.0
 	hit_flash = 0.0
 	bank_angle = 0.0
@@ -162,6 +188,9 @@ func _go_home() -> void:
 	run.mode = CourierRun.Mode.READY
 	drag_id = -1
 	particles.clear()
+	rings.clear()
+	floaters.clear()
+	trail.clear()
 	_sync_interface()
 
 
@@ -178,9 +207,13 @@ func _on_run_event(kind: String, at: Vector2, amount: int) -> void:
 	match kind:
 		"coin":
 			_burst(at, GOLD, 10)
+			floaters.append({"position": at, "text": "+20", "color": GOLD, "life": 0.8})
 			_play_sound("coin")
 		"delivery":
-			_burst(at, MINT, 48)
+			var accent: Color = _level_data().accent
+			_burst(at, accent, 58)
+			rings.append({"position": at, "color": accent, "life": 1.0})
+			floaters.append({"position": at - Vector2(0, 130), "text": "+150  ·  PAKK KOHAL", "color": GOLD, "life": 1.3})
 			notification_text = "Pakk kohal!  +150"
 			toast_remaining = 2.3
 			_play_sound("delivery")
@@ -193,8 +226,12 @@ func _on_run_event(kind: String, at: Vector2, amount: int) -> void:
 			notification_text = "Kilp kaitses sind!"
 			toast_remaining = 1.5
 			_play_sound("hit")
+		"repair":
+			rings.append({"position": at, "color": MINT, "life": 0.8})
+			_burst(at, MINT, 20)
+			floaters.append({"position": at - Vector2(0, 75), "text": "+1 KILP", "color": MINT, "life": 1.6})
 		"won":
-			_burst(Vector2(540.0, 760.0), GOLD, 80)
+			_burst(Vector2(540.0, 485.0), GOLD, 90)
 			_play_sound("delivery")
 		"lost":
 			_play_sound("hit")
@@ -209,7 +246,7 @@ func _burst(at: Vector2, color: Color, count: int) -> void:
 func _build_interface() -> void:
 	var header := _layer("Header")
 	_label(header, "KOSMOSEKULLER", Rect2(64, 72, 780, 80), 59, CREAM, true)
-	_label(header, "VÄIKE LAEV. SUUR GALAKTIKA.", Rect2(68, 152, 760, 40), 23, MUTED)
+	region_label = _label(header, "VÄIKE LAEV. SUUR GALAKTIKA.", Rect2(68, 152, 760, 40), 23, MUTED)
 	sound_button = _button(header, "♪", Rect2(824, 76, 78, 78), _toggle_sound, false)
 	sound_button.tooltip_text = "Heli sisse / välja"
 	sound_button.accessibility_name = "Heli sisse või välja"
@@ -219,10 +256,20 @@ func _build_interface() -> void:
 	pause_button.accessibility_name = "Peata lend"
 
 	home = _layer("Home")
-	_label(home, "ESIMENE TÖÖPÄEV KOSMOSES", Rect2(130, 504, 820, 48), 24, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(home, "Tere, kuller!", Rect2(120, 580, 840, 120), 90, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(home, "Viis pakki. Kolm kilpi.\nÜks väike suur seiklus.", Rect2(180, 726, 720, 110), 33, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(home, "01 // MÜNDIORBIIT", Rect2(250, 886, 580, 48), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(home, "VALI OMA JÄRGMINE SIHTKOHT", Rect2(130, 496, 820, 48), 23, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(home, "Galaktika ootab.", Rect2(120, 568, 840, 104), 68, CREAM, true, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(home, "Kolm piirkonda. Viis pakki igas lennus.\nAva järgmine rada ja kogu tähti.", Rect2(150, 702, 780, 100), 28, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	home_region_label = _label(home, "", Rect2(180, 844, 720, 48), 27, MINT, true, HORIZONTAL_ALIGNMENT_CENTER)
+	home_description = _label(home, "", Rect2(140, 1132, 800, 40), 23, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
+	for i in range(CourierLevels.COUNT):
+		var level_number := i + 1
+		var button := _button(home, "", Rect2(150 + i * 268, 1190, 244, 115), _select_level.bind(level_number), false)
+		button.name = "Level%sButton" % level_number
+		button.toggle_mode = true
+		button.add_theme_font_size_override("font_size", 22)
+		button.add_theme_stylebox_override("disabled", _style(Color("101c32"), Color("26374e"), 26))
+		button.add_theme_color_override("font_disabled_color", Color("60718b"))
+		level_buttons.append(button)
 	var start := _button(home, "ALUSTA LENDU  →", Rect2(150, 1364, 780, 116), _start_run, true)
 	start.name = "StartButton"
 	_label(home, "Libista laeva. Väldi asteroide.\nPeatu planeedi maandumisringis.", Rect2(150, 1576, 780, 110), 27, MUTED, false, HORIZONTAL_ALIGNMENT_CENTER)
@@ -251,7 +298,21 @@ func _primary_action() -> void:
 	if run.mode == CourierRun.Mode.PAUSED:
 		run.resume()
 	else:
+		if run.mode == CourierRun.Mode.WON and run.level < CourierLevels.COUNT:
+			_select_level(run.level + 1)
 		_start_run()
+
+
+func _select_level(level_number: int) -> void:
+	if level_number < 1 or level_number > profile.unlocked_level:
+		return
+	if profile.select_level(level_number) != OK:
+		push_warning("Level selection could not be saved on this device.")
+	_sync_interface()
+
+
+func _level_data() -> Dictionary:
+	return CourierLevels.get_level(profile.selected_level if run.mode == CourierRun.Mode.READY else run.level)
 
 
 func _sync_interface() -> void:
@@ -264,6 +325,20 @@ func _sync_interface() -> void:
 	hud.visible = not is_home
 	hud.modulate.a = 0.2 if is_paused or is_over else 1.0
 	overlay.visible = is_paused or is_over
+	var level_data := _level_data()
+	region_label.text = "AVATUD PIIRKONDI %s/3  ·  VALI OMA RADA" % profile.unlocked_level if is_home else "TASE %02d  ·  %s" % [run.level, level_data.name.to_upper()]
+	home_region_label.text = "%02d  //  %s" % [profile.selected_level, level_data.name.to_upper()]
+	if home_region_label.get_theme_color("font_color") != level_data.accent:
+		home_region_label.add_theme_color_override("font_color", level_data.accent)
+	home_description.text = level_data.description
+	for i in range(level_buttons.size()):
+		var number := i + 1
+		var unlocked := number <= profile.unlocked_level
+		var stars_text := "★".repeat(profile.stars_for_level(number))
+		level_buttons[i].disabled = not unlocked
+		level_buttons[i].set_pressed_no_signal(number == profile.selected_level)
+		level_buttons[i].text = "%02d  %s\n%s" % [number, stars_text, CourierLevels.get_level(number).name if unlocked else "LUKUS"]
+		level_buttons[i].tooltip_text = "Läbi eelmine tase, et see piirkond avada" if not unlocked else CourierLevels.get_level(number).description
 	sound_button.text = "♪" if profile.sound_enabled else "×"
 	get_node("Header/PauseButton").visible = not is_home and not is_over and not is_paused
 	record_label.text = "SINU REKORD  ·  %s P" % profile.best_score if profile.best_score > 0 else "LÕÕGASTAV LEND  ·  MÄNGI OMAS TEMPOS"
@@ -273,8 +348,9 @@ func _sync_interface() -> void:
 	toast_label.text = notification_text
 	toast_label.modulate.a = minf(1.0, toast_remaining * 2.0)
 	if run.destination_active:
-		hint_label.text = "LENDA MÄRGITUD RINGI"
-		subhint_label.text = "Hoia laeva ringis, kuni pakk on üle antud"
+		var can_land := run.destination.y >= 400.0
+		hint_label.text = "LENDA MÄRGITUD RINGI" if can_land else "SIHTKOHT LÄHENEB"
+		subhint_label.text = "Hoia laeva ringis, kuni pakk on üle antud" if can_land else "Hoia kurssi. Maandumisring avaneb kohe."
 	else:
 		hint_label.text = "LIBISTA JA JUHI"
 		subhint_label.text = "Korja münte ja väldi asteroide"
@@ -288,7 +364,10 @@ func _sync_interface() -> void:
 		overlay_title.text = "Kõik pakid kohal!" if won else "Uus lend ootab."
 		overlay_subtitle.text = "Galaktika tänab sind.\nOled tõeline kosmosekuller!" if won else "Iga lend teeb sind osavamaks.\nProovime veel ühe korra?"
 		overlay_stats.text = "%s P\n%s/5 pakki   ·   %s münti" % [run.score, run.delivered, run.collected_coins]
-		primary_button.text = "LENDAME VEEL  →"
+		if won:
+			overlay_title.text = "Tase %02d läbitud!" % run.level
+			overlay_subtitle.text = "%s on nüüd avatud!\nJärgmine seiklus ootab sind." % CourierLevels.get_level(run.level + 1).name if run.level < CourierLevels.COUNT else "Kõik kolm piirkonda on läbitud!\nPüüa igal rajal kolm tähte."
+		primary_button.text = "JÄRGMINE TASE  →" if won and run.level < CourierLevels.COUNT else "LENDAME VEEL  →"
 
 
 func _layer(layer_name: String) -> Control:
@@ -348,7 +427,8 @@ func _style(fill: Color, border: Color, radius: int) -> StyleBoxFlat:
 
 
 func _draw() -> void:
-	draw_texture_rect(SPACE, Rect2(Vector2.ZERO, CourierRun.WORLD), false)
+	var theme := _level_data()
+	draw_texture_rect(SPACE, Rect2(Vector2.ZERO, CourierRun.WORLD), false, theme.sky_tint)
 	for star in stars:
 		var alpha: float = (0.3 + star.depth * 0.5) * (0.8 + sin(clock * 0.9 + star.phase) * 0.2)
 		var color := Color(0.7, 0.85, 1.0, alpha)
@@ -359,6 +439,12 @@ func _draw() -> void:
 		_draw_home()
 	else:
 		_draw_flight()
+		# Keep moving obstacles behind a quiet header so its text stays readable.
+		_panel(Rect2(40, 50, 1000, 145), Color(0.04, 0.07, 0.145, 0.96), Color.TRANSPARENT, 24)
+	for ring in rings:
+		var tint: Color = ring.color
+		tint.a = maxf(0.0, ring.life * 0.7)
+		draw_arc(ring.position, 35.0 + (1.0 - ring.life) * 240.0, 0, TAU, 72, tint, 4.0 * ring.life, true)
 	for particle in particles:
 		var color: Color = particle.color
 		color.a = clampf(particle.life * 1.8, 0.0, 1.0)
@@ -367,7 +453,21 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, CourierRun.WORLD), Color(0.02, 0.04, 0.11, 0.76))
 		_panel(Rect2(90, 560, 900, 1010), Color("111e36"), Color("344e68"), 48)
 		var icon_color := GOLD if run.mode == CourierRun.Mode.WON else MINT
-		_cross(Vector2(540, 518), 28.0, icon_color)
+		if run.mode == CourierRun.Mode.WON:
+			for i in range(3):
+				_draw_star(Vector2(410 + i * 130, 494 - (28 if i == 1 else 0)), 42.0, GOLD if i < run.shields else Color("35475e"))
+		else:
+			_cross(Vector2(540, 518), 28.0, icon_color)
+	if run.mode == CourierRun.Mode.FLYING:
+		for floater in floaters:
+			var tint: Color = floater.color
+			tint.a = minf(1.0, floater.life * 2.0)
+			_center_text(floater.text, floater.position - Vector2(0, (1.6 - floater.life) * 58.0), 30, tint)
+		if intro_remaining > 0.0:
+			var opacity := minf(1.0, intro_remaining * 2.0)
+			_panel(Rect2(200, 437, 680, 145), Color(0.045, 0.09, 0.16, opacity * 0.95), Color(theme.accent, opacity * 0.5), 30)
+			_center_text("TASE %02d" % run.level, Vector2(540, 486), 23, Color(theme.accent, opacity))
+			_center_text(theme.name, Vector2(540, 544), 39, Color(CREAM, opacity))
 	if hit_flash > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, CourierRun.WORLD), Color(1.0, 0.37, 0.38, hit_flash * 0.24))
 
@@ -375,13 +475,13 @@ func _draw() -> void:
 func _draw_home() -> void:
 	draw_arc(Vector2(540, 1010), 638.0, -2.8, 0.8, 120, Color(0.4, 0.7, 0.8, 0.13), 2.0, true)
 	draw_arc(Vector2(540, 1010), 700.0, -1.0, 2.4, 120, Color(0.4, 0.7, 0.8, 0.08), 2.0, true)
-	_draw_planet(Vector2(1005, 445), 185.0, 0.18, Color.WHITE)
+	_draw_planet(Vector2(1005, 445), 185.0, 0.18, _level_data().planet_tint)
 	_draw_planet(Vector2(0, 1570), 155.0, -0.24, Color("f5b1a6"))
 	_panel(Rect2(90, 455, 900, 1080), Color(0.06, 0.105, 0.19, 0.94), Color("2b405c"), 48)
-	draw_arc(Vector2(540, 1106), 154.0, 0.0, TAU, 80, Color(0.6, 0.96, 0.82, 0.11), 2.0, true)
-	_draw_ship(Vector2(540, 1095 + sin(clock * 1.8) * 10.0), 1.05, sin(clock * 1.3) * 0.035, false)
-	_cross(Vector2(302, 1010), 13.0, GOLD)
-	_cross(Vector2(776, 1178), 9.0, MINT)
+	draw_arc(Vector2(540, 1013), 111.0, 0.0, TAU, 80, Color(0.6, 0.96, 0.82, 0.15), 2.0, true)
+	_draw_ship(Vector2(540, 998 + sin(clock * 1.8) * 7.0), 0.62, sin(clock * 1.3) * 0.035, false)
+	_cross(Vector2(330, 990), 13.0, GOLD)
+	_cross(Vector2(745, 1060), 9.0, MINT)
 	_draw_parcel(Vector2(841, 393), 0.75, clock * 0.1)
 
 
@@ -400,13 +500,18 @@ func _draw_flight() -> void:
 		draw_texture_rect(ASTEROID, Rect2(-150, -150, 300, 300), false, Color("e0c7e8") if rock.variant == 1 else Color.WHITE)
 		draw_set_transform(Vector2.ZERO)
 	# Keep the ship visible while protected; the shield arc conveys invulnerability.
-	_draw_ship(run.ship, 0.66, bank_angle, run.invincible_for > 0.0)
+	for i in range(1, trail.size()):
+		var tint: Color = _level_data().accent
+		tint.a = float(i) / trail.size() * 0.17
+		draw_line(trail[i - 1], trail[i], tint, 3.0 + float(i) / trail.size() * 9.0, true)
+	var shake := Vector2(sin(clock * 71.0), cos(clock * 59.0)) * hit_flash * 10.0
+	_draw_ship(run.ship + shake, 0.66, bank_angle, run.invincible_for > 0.0)
 	_draw_hud()
 
 
 func _draw_destination() -> void:
 	var pad := run.dock_position()
-	if pad.y > 350.0:
+	if run.destination.y >= 400.0:
 		# Small navigation dots lead to the actual interactive delivery pad.
 		var from := run.ship - Vector2(0, 80)
 		var distance := from.distance_to(pad)
@@ -417,7 +522,7 @@ func _draw_destination() -> void:
 				var p := from.lerp(pad, t)
 				p.x += sin(t * PI) * 35.0
 				draw_circle(p, 3.5, Color(0.6, 0.96, 0.83, 0.18 + t * 0.35), true, -1.0, true)
-	_draw_planet(run.destination, 177.0, 0.0, Color.WHITE)
+	_draw_planet(run.destination, 177.0, 0.0, _level_data().planet_tint)
 	var pulse := 1.0 + sin(clock * 3.3) * 0.04
 	draw_circle(pad, CourierRun.DOCK_RADIUS * pulse + 20.0, Color(0.45, 1.0, 0.77, 0.035), true, -1.0, true)
 	draw_circle(pad, CourierRun.DOCK_RADIUS * pulse, Color(0.45, 1.0, 0.77, 0.07), true, -1.0, true)
@@ -428,6 +533,8 @@ func _draw_destination() -> void:
 	if run.dock_progress > 0.0:
 		draw_arc(pad, CourierRun.DOCK_RADIUS + 23.0, -PI / 2.0, -PI / 2.0 + TAU * minf(run.dock_progress, 1.0), 80, GOLD, 9.0, true)
 	_draw_parcel(pad, 0.55, 0.0)
+	if run.dock_progress > 0.0:
+		_center_text("ANNAN PAKKI ÜLE…", pad + Vector2(0, 161), 23, GOLD)
 	var label_position := Vector2(run.destination.x, maxf(370.0, run.destination.y - 211.0))
 	_panel(Rect2(label_position - Vector2(110, 30), Vector2(220, 60)), MINT, MINT, 24)
 	_center_text("SIHTKOHT", label_position + Vector2(0, 9), 23, Color("183b42"))
@@ -435,6 +542,10 @@ func _draw_destination() -> void:
 
 func _draw_hud() -> void:
 	_panel(Rect2(60, 211, 960, 112), Color(0.055, 0.1, 0.18, 0.94), Color("2b405c"), 30)
+	draw_line(Vector2(90, 332), Vector2(990, 332), Color("263c56"), 5.0, true)
+	var progress := (float(run.delivered) + run.dock_progress) / CourierRun.DELIVERY_GOAL
+	if progress > 0.0:
+		draw_line(Vector2(90, 332), Vector2(90 + 900 * progress, 332), _level_data().accent, 5.0, true)
 	draw_line(Vector2(304, 235), Vector2(304, 298), Color("2c405b"), 2.0, true)
 	draw_line(Vector2(774, 235), Vector2(774, 298), Color("2c405b"), 2.0, true)
 	_draw_coin(Vector2(102, 265), 0.68)
@@ -505,6 +616,13 @@ func _panel(rect: Rect2, fill: Color, border: Color, radius: int) -> void:
 
 func _cross(at: Vector2, radius: float, color: Color) -> void:
 	draw_colored_polygon(PackedVector2Array([at + Vector2(0, -radius), at + Vector2(radius * 0.22, -radius * 0.22), at + Vector2(radius, 0), at + Vector2(radius * 0.22, radius * 0.22), at + Vector2(0, radius), at + Vector2(-radius * 0.22, radius * 0.22), at + Vector2(-radius, 0), at + Vector2(-radius * 0.22, -radius * 0.22)]), color)
+
+
+func _draw_star(at: Vector2, radius: float, tint: Color) -> void:
+	var points := PackedVector2Array()
+	for i in range(10):
+		points.append(at + Vector2.from_angle(-PI / 2.0 + i * PI / 5.0) * radius * (1.0 if i % 2 == 0 else 0.46))
+	draw_colored_polygon(points, tint)
 
 
 func _center_text(text: String, baseline: Vector2, font_size: int, color: Color) -> void:

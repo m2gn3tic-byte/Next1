@@ -15,10 +15,13 @@ Arvuti: lohista hiirega või kasuta nooleklahve / WASD.
 P või Esc: paus. Enter: alusta või jätka.
 
 EESMÄRK
-Vii kõik viis pakki planeetidele. Kui sihtkoht saabub, lenda helendavasse
+Vali tasemevalikust avatud piirkond ja vii kõik viis pakki planeetidele.
+Viis tarnet avavad järgmise piirkonna. Allesjäänud kilbid annavad 1–3 tähte.
+Kui sihtkoht saabub, lenda helendavasse
 maandumisringi ja püsi seal pool sekundit. Asteroidid võtavad ühe kilbi;
 kolme kilbi kaotamisel lõpeb lend. Mündid ja kohaletoimetamised annavad punkte.
-Rekord ja helieelistus salvestatakse samasse brauserisse kohapeal.
+Teine ja neljas tarne taastavad ühe puuduva kilbi. Avatud piirkonnad, tähed,
+tasemevalik, rekord ja helieelistus salvestatakse samasse brauserisse kohapeal.
 
 See on brauseris ja Godotis mängitav prototüüp. Androidi APK/AAB, päristelefonil
 testimine, reklaamid ja ostud ei kuulu sellesse esimesse versiooni.

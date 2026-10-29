@@ -13,8 +13,10 @@ const DELIVERY_GOAL := 5
 const DOCK_RADIUS := 110.0
 const DOCK_TIME := 0.5
 const MAX_SHIELDS := 3
+const LEVELS := preload("res://scripts/levels.gd")
 
 var mode: Mode = Mode.READY
+var level := 1
 var ship := Vector2(540.0, 1380.0)
 var target := ship
 var asteroids: Array[Dictionary] = []
@@ -34,12 +36,13 @@ var next_destination := 5.0
 var rng := RandomNumberGenerator.new()
 
 
-func begin(seed_value: int = -1) -> void:
+func begin(seed_value: int = -1, level_number: int = 1) -> void:
 	if seed_value < 0:
 		rng.randomize()
 	else:
 		rng.seed = seed_value
 	mode = Mode.FLYING
+	level = clampi(level_number, 1, LEVELS.COUNT)
 	ship = Vector2(540.0, 1380.0)
 	target = ship
 	asteroids.clear()
@@ -87,7 +90,8 @@ func step(delta: float) -> void:
 	elapsed += dt
 	invincible_for = maxf(0.0, invincible_for - dt)
 	ship = ship.move_toward(target, SHIP_SPEED * dt)
-	var speed := 260.0 + delivered * 28.0
+	var settings := LEVELS.get_level(level)
+	var speed: float = settings.speed + delivered * 28.0
 
 	if not destination_active and elapsed >= next_destination:
 		destination_active = true
@@ -114,7 +118,7 @@ func step(delta: float) -> void:
 		asteroid_timer -= dt
 		if asteroid_timer <= 0.0:
 			_spawn_asteroid(speed)
-			asteroid_timer = maxf(0.64, 1.12 - delivered * 0.08)
+			asteroid_timer = maxf(0.64, float(settings.spawn_interval) - delivered * 0.08)
 		coin_timer -= dt
 		if coin_timer <= 0.0:
 			_spawn_coins(speed)
@@ -134,6 +138,13 @@ func step(delta: float) -> void:
 	for i in range(asteroids.size() - 1, -1, -1):
 		var rock: Dictionary = asteroids[i]
 		rock.position.y += rock.speed * dt
+		var drift := float(rock.get("drift", 0.0))
+		rock.position.x += drift * dt
+		var left_edge: float = rock.radius + 15.0
+		var right_edge: float = WORLD.x - rock.radius - 15.0
+		if rock.position.x < left_edge or rock.position.x > right_edge:
+			rock.position.x = clampf(rock.position.x, left_edge, right_edge)
+			rock["drift"] = -drift
 		rock.angle += rock.spin * dt
 		if rock.position.y > WORLD.y + rock.radius:
 			asteroids.remove_at(i)
@@ -161,6 +172,9 @@ func _deliver() -> void:
 	asteroids = asteroids.filter(func(rock: Dictionary) -> bool:
 		return rock.position.distance_to(ship) > rock.radius + 260.0)
 	event.emit("delivery", dock_position(), delivered)
+	if delivered % 2 == 0 and shields < MAX_SHIELDS:
+		shields += 1
+		event.emit("repair", ship, shields)
 	if delivered == DELIVERY_GOAL:
 		score += 300 + shields * 100
 		mode = Mode.WON
@@ -177,6 +191,7 @@ func _spawn_asteroid(speed: float) -> void:
 		"position": position, "radius": radius, "speed": speed,
 		"angle": rng.randf_range(-PI, PI), "spin": rng.randf_range(-0.32, 0.32),
 		"variant": rng.randi_range(0, 1),
+		"drift": float(LEVELS.get_level(level).drift) * (-1.0 if rng.randf() < 0.5 else 1.0),
 	})
 
 
